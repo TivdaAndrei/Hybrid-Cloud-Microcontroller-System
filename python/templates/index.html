@@ -5,115 +5,334 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Arduino Sensor Dashboard</title>
     <style>
+        * { box-sizing: border-box; }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             display: flex;
             justify-content: center;
-            align-items: center;
-            height: 100vh;
+            align-items: flex-start;
+            min-height: 100vh;
             margin: 0;
+            padding: 30px 16px;
             background-color: #f0f2f5;
             color: #333;
         }
+
         #dashboard {
             text-align: center;
             background-color: white;
-            padding: 40px 60px;
-            border-radius: 12px;
+            padding: 36px 48px;
+            border-radius: 16px;
             box-shadow: 0 8px 30px rgba(0,0,0,0.1);
-            width: 400px;
+            width: 440px;
         }
+
         h1 {
             color: #1a73e8;
-            margin-bottom: 30px;
+            margin: 0 0 28px;
+            font-size: 1.6em;
         }
+
+        /* ── two-column row ── */
+        .row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .row .sensor-card {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        /* ── generic card ── */
         .sensor-card {
             background-color: #f8f9fa;
             border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
+            border-radius: 10px;
+            padding: 18px 16px;
+            margin-bottom: 16px;
         }
         .sensor-card h2 {
-            margin-top: 0;
+            margin: 0 0 10px;
             color: #5f6368;
-            font-size: 1.2em;
+            font-size: 1em;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
         .sensor-value {
-            font-size: 3em;
+            font-size: 2.6em;
             font-weight: 300;
             color: #202124;
+            margin: 0;
+            line-height: 1;
         }
         .unit {
-            font-size: 1.2em;
+            font-size: 1em;
             color: #5f6368;
         }
+
+        /* ── LED indicator ── */
+        .led-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            margin-top: 4px;
+        }
+        .led-bulb {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: #ccc;
+            border: 3px solid #bbb;
+            transition: background-color 0.3s, box-shadow 0.3s;
+            flex-shrink: 0;
+        }
+        .led-bulb.on {
+            background-color: #ffe033;
+            border-color: #e6c200;
+            box-shadow: 0 0 14px 6px rgba(255,220,0,0.55);
+        }
+        .led-label {
+            font-size: 1.5em;
+            font-weight: 500;
+            color: #202124;
+        }
+
+        /* ── Light Intensity card ── */
+        #intensity-card { padding-bottom: 24px; }
+
+        #gauge-svg {
+            display: block;
+            margin: 0 auto;
+            overflow: visible;
+        }
+
+        #bulb-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: -8px;
+        }
+
+        #bulb-svg {
+            transition: filter 0.25s ease;
+        }
+
+        /* ── status ── */
         #status {
-            margin-top: 20px;
-            font-size: 0.9em;
-            height: 20px;
+            margin-top: 8px;
+            font-size: 0.88em;
+            min-height: 18px;
         }
-        .error {
-            color: #d93025;
-            font-weight: bold;
-        }
-        .ok {
-            color: #1e8e3e;
-            font-weight: bold;
-        }
+        .error { color: #d93025; font-weight: bold; }
+        .ok    { color: #1e8e3e; font-weight: bold; }
     </style>
 </head>
 <body>
-
 <div id="dashboard">
     <h1>Sensor Dashboard</h1>
-    
-    <div class="sensor-card">
-        <h2>Temperature</h2>
-        <p class="sensor-value"><span id="temperature">--</span><span class="unit"> °C</span></p>
+
+    <!-- Temperature & Humidity -->
+    <div class="row">
+        <div class="sensor-card">
+            <h2>Temperature</h2>
+            <p class="sensor-value"><span id="temperature">--</span><span class="unit"> °C</span></p>
+        </div>
+        <div class="sensor-card">
+            <h2>Humidity</h2>
+            <p class="sensor-value"><span id="humidity">--</span><span class="unit"> %</span></p>
+        </div>
     </div>
-    
+
+    <!-- Master LED -->
     <div class="sensor-card">
-        <h2>Humidity</h2>
-        <p class="sensor-value"><span id="humidity">--</span><span class="unit"> %</span></p>
+        <h2>Master LED</h2>
+        <div class="led-indicator">
+            <div class="led-bulb" id="led-bulb"></div>
+            <span class="led-label" id="led-label">--</span>
+        </div>
+    </div>
+
+    <!-- Light Intensity -->
+    <div class="sensor-card" id="intensity-card">
+        <h2>Light Intensity</h2>
+
+        <!--
+            Semicircle gauge
+            Centre: (110, 118)   Radius: 98
+            Arc start (left): (12, 118)   Arc end (right): (208, 118)
+            Arc length: π × 98 ≈ 308
+        -->
+        <svg id="gauge-svg" viewBox="0 0 220 128" width="280" height="128">
+            <defs>
+                <linearGradient id="arc-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%"   stop-color="#f5a623"/>
+                    <stop offset="100%" stop-color="#ffe033"/>
+                </linearGradient>
+            </defs>
+
+            <!-- background track -->
+            <path d="M 12 118 A 98 98 0 0 1 208 118"
+                  fill="none" stroke="#e0e0e0" stroke-width="18" stroke-linecap="round"/>
+
+            <!-- value arc — dashoffset animated by JS -->
+            <path id="pot-arc"
+                  d="M 12 118 A 98 98 0 0 1 208 118"
+                  fill="none" stroke="url(#arc-grad)" stroke-width="18" stroke-linecap="round"
+                  stroke-dasharray="308" stroke-dashoffset="308"
+                  style="transition: stroke-dashoffset 0.25s ease;"/>
+
+            <!-- percentage label -->
+            <text id="gauge-pct" x="110" y="96"
+                  text-anchor="middle" font-size="30" font-weight="300" fill="#202124">--</text>
+            <text x="110" y="114"
+                  text-anchor="middle" font-size="11" fill="#9aa0a6">%</text>
+        </svg>
+
+        <!-- Light-bulb icon -->
+        <div id="bulb-wrap">
+            <svg id="bulb-svg" viewBox="0 0 100 128" width="72" height="92">
+                <defs>
+                    <radialGradient id="bulb-grad" cx="50%" cy="38%" r="52%">
+                        <stop offset="0%"   id="grad-center" stop-color="#ffffff" stop-opacity="0.9"/>
+                        <stop offset="100%" id="grad-edge"   stop-color="#d0d0d0" stop-opacity="1"/>
+                    </radialGradient>
+                </defs>
+
+                <!-- glass globe -->
+                <path id="bulb-body"
+                      d="M50,8 C27,8 11,25 11,46 C11,62 21,75 36,81 L36,90 L64,90 L64,81 C79,75 89,62 89,46 C89,25 73,8 50,8 Z"
+                      fill="url(#bulb-grad)" stroke="#c8c8c8" stroke-width="1.5"/>
+
+                <!-- filament -->
+                <polyline id="filament"
+                          points="39,76 50,60 61,76"
+                          fill="none" stroke="#bbb" stroke-width="2" stroke-linejoin="round"/>
+
+                <!-- base segments -->
+                <rect x="36" y="90" width="28" height="9"  rx="2" fill="#c0c0c0"/>
+                <rect x="38" y="99" width="24" height="9"  rx="2" fill="#b0b0b0"/>
+                <rect x="40" y="108" width="20" height="8" rx="2" fill="#a0a0a0"/>
+            </svg>
+        </div>
     </div>
 
     <div id="status"></div>
 </div>
 
 <script>
+    const ARC_LEN = 308; // π × 98
+
+    const potArc    = document.getElementById('pot-arc');
+    const gaugePct  = document.getElementById('gauge-pct');
+    const bulbSvg   = document.getElementById('bulb-svg');
+    const bulbBody  = document.getElementById('bulb-body');
+    const filament  = document.getElementById('filament');
+    const gradCenter = document.getElementById('grad-center');
+    const gradEdge   = document.getElementById('grad-edge');
+
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    function setBulb(pct) {
+        // pct: 0.0 – 1.0
+        if (pct <= 0) {
+            bulbBody.style.fill = 'url(#bulb-grad)';
+            gradCenter.setAttribute('stop-color', '#ffffff');
+            gradCenter.setAttribute('stop-opacity', '0.5');
+            gradEdge.setAttribute('stop-color', '#c8c8c8');
+            gradEdge.setAttribute('stop-opacity', '1');
+            filament.setAttribute('stroke', '#bbb');
+            bulbSvg.style.filter = 'none';
+            return;
+        }
+
+        // Globe: grey → warm yellow
+        const cr = Math.round(lerp(255, 255, pct));
+        const cg = Math.round(lerp(255, 240, pct));
+        const cb = Math.round(lerp(255,  80, pct));
+        const er = Math.round(lerp(200, 255, pct));
+        const eg = Math.round(lerp(200, 190, pct));
+        const eb = Math.round(lerp(200,  30, pct));
+
+        gradCenter.setAttribute('stop-color', `rgb(${cr},${cg},${cb})`);
+        gradCenter.setAttribute('stop-opacity', '1');
+        gradEdge.setAttribute('stop-color', `rgb(${er},${eg},${eb})`);
+        gradEdge.setAttribute('stop-opacity', '1');
+
+        // Filament: grey → orange-white hot
+        const fr = Math.round(lerp(180, 255, pct));
+        const fg = Math.round(lerp(180, 200, pct));
+        const fb = Math.round(lerp(180,  60, pct));
+        filament.setAttribute('stroke', `rgb(${fr},${fg},${fb})`);
+        filament.setAttribute('stroke-width', 1.5 + pct * 1.5);
+
+        // Outer glow
+        const glowPx  = (pct * 18).toFixed(1);
+        const glowAlpha = (pct * 0.85).toFixed(2);
+        bulbSvg.style.filter =
+            `drop-shadow(0 0 ${glowPx}px rgba(255,215,0,${glowAlpha}))`;
+    }
+
+    function setLed(status) {
+        const bulb  = document.getElementById('led-bulb');
+        const label = document.getElementById('led-label');
+        if (status === 'ON') {
+            bulb.classList.add('on');
+            label.textContent = 'ON';
+        } else {
+            bulb.classList.remove('on');
+            label.textContent = (status === 'OFF') ? 'OFF' : '--';
+        }
+    }
+
+    function setPot(raw) {
+        if (raw === 'N/A' || raw === undefined || raw === null) {
+            potArc.style.strokeDashoffset = ARC_LEN;
+            gaugePct.textContent = '--';
+            setBulb(0);
+            return;
+        }
+        const value = parseInt(raw, 10);
+        if (isNaN(value)) { setPot('N/A'); return; }
+        const clamped = Math.max(0, Math.min(1023, value));
+        const pct     = clamped / 1023;
+        potArc.style.strokeDashoffset = (ARC_LEN * (1 - pct)).toFixed(2);
+        gaugePct.textContent = Math.round(pct * 100);
+        setBulb(pct);
+    }
+
     function updateSensorData() {
         fetch('/data')
-            .then(response => response.json())
+            .then(r => r.json())
             .then(data => {
                 const statusDiv = document.getElementById('status');
-
                 if (data.error) {
                     document.getElementById('temperature').textContent = 'N/A';
-                    document.getElementById('humidity').textContent = 'N/A';
+                    document.getElementById('humidity').textContent    = 'N/A';
+                    setLed('N/A');
+                    setPot('N/A');
                     statusDiv.textContent = data.error;
-                    statusDiv.className = 'error';
+                    statusDiv.className   = 'error';
                 } else {
                     document.getElementById('temperature').textContent = data.temperature;
-                    document.getElementById('humidity').textContent = data.humidity;
+                    document.getElementById('humidity').textContent    = data.humidity;
+                    setLed(data.led_status);
+                    setPot(data.pot_value);
                     statusDiv.textContent = 'Connected';
-                    statusDiv.className = 'ok';
+                    statusDiv.className   = 'ok';
                 }
             })
-            .catch(error => {
-                console.error('Error fetching data:', error);
+            .catch(() => {
                 const statusDiv = document.getElementById('status');
                 statusDiv.textContent = 'Server connection failed.';
-                statusDiv.className = 'error';
+                statusDiv.className   = 'error';
             });
     }
 
-    // Update data every 3 seconds
-    setInterval(updateSensorData, 3000);
-
-    // Initial data load
+    setInterval(updateSensorData, 500);
     window.onload = updateSensorData;
 </script>
-
 </body>
 </html>
