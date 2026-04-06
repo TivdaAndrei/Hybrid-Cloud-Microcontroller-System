@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arduino Sensor Dashboard</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+        #dashboard {
+            text-align: center;
+            background-color: white;
+            padding: 40px 60px;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+            width: 400px;
+        }
+        h1 {
+            color: #1a73e8;
+            margin-bottom: 30px;
+        }
+        .sensor-card {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .sensor-card h2 {
+            margin-top: 0;
+            color: #5f6368;
+            font-size: 1.2em;
+        }
+        .sensor-value {
+            font-size: 3em;
+            font-weight: 300;
+            color: #202124;
+        }
+        .unit {
+            font-size: 1.2em;
+            color: #5f6368;
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 0.9em;
+            height: 20px;
+        }
+        .error {
+            color: #d93025;
+            font-weight: bold;
+        }
+        .ok {
+            color: #1e8e3e;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div id="dashboard">
+    <h1>Sensor Dashboard</h1>
+    
+    <div class="sensor-card">
+        <h2>Temperature</h2>
+        <p class="sensor-value"><span id="temperature">--</span><span class="unit"> °C</span></p>
+    </div>
+    
+    <div class="sensor-card">
+        <h2>Humidity</h2>
+        <p class="sensor-value"><span id="humidity">--</span><span class="unit"> %</span></p>
+    </div>
+
+    <div id="status"></div>
+</div>
+
+<script>
+    function updateSensorData() {
+        fetch('/data')
+            .then(response => response.json())
+            .then(data => {
+                const statusDiv = document.getElementById('status');
+
+                if (data.error) {
+                    document.getElementById('temperature').textContent = 'N/A';
+                    document.getElementById('humidity').textContent = 'N/A';
+                    statusDiv.textContent = data.error;
+                    statusDiv.className = 'error';
+                } else {
+                    document.getElementById('temperature').textContent = data.temperature;
+                    document.getElementById('humidity').textContent = data.humidity;
+                    statusDiv.textContent = 'Connected';
+                    statusDiv.className = 'ok';
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching data:', error);
+                const statusDiv = document.getElementById('status');
+                statusDiv.textContent = 'Server connection failed.';
+                statusDiv.className = 'error';
+            });
+    }
+
+    // Update data every 3 seconds
+    setInterval(updateSensorData, 3000);
+
+    // Initial data load
+    window.onload = updateSensorData;
+</script>
+
+</body>
+</html>

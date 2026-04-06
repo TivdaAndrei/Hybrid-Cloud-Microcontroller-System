@@ -1,13 +1,13 @@
 #include <DHT.h>
 
 const int LED_PIN = 13;
-const int DHT_PIN = 2;
+const int DHT_PIN = 7;
 const int DHT_TYPE = DHT11;
 
 DHT dht(DHT_PIN, DHT_TYPE);
 
 unsigned long lastReadMs = 0;
-const unsigned long READ_INTERVAL_MS = 15000;
+const unsigned long READ_INTERVAL_MS = 2000;
 
 void blinkLocalLed(int times = 2, int onMs = 120, int offMs = 120) {
   for (int i = 0; i < times; i++) {
@@ -29,6 +29,19 @@ void setup() {
 }
 
 void loop() {
+  // Check for incoming serial data for LED control
+  if (Serial.available() > 0) {
+    char command = Serial.read();
+    if (command == 'A') {
+      digitalWrite(LED_PIN, HIGH);
+      Serial.println("LED_STATUS:ON"); // Report status back
+    } else if (command == 'S') {
+      digitalWrite(LED_PIN, LOW);
+      Serial.println("LED_STATUS:OFF"); // Report status back
+    }
+  }
+
+  // Read sensor data at regular intervals
   unsigned long now = millis();
   if (now - lastReadMs >= READ_INTERVAL_MS) {
     lastReadMs = now;
@@ -39,20 +52,12 @@ void loop() {
     if (isnan(humidity) || isnan(temperatureC)) {
       Serial.println("DHT11 read failed");
     } else {
-      Serial.print("Temperature: ");
-      Serial.print(temperatureC, 1);
-      Serial.print(" C, Humidity: ");
-      Serial.print(humidity, 1);
-      Serial.println(" %");
-    }
-  }
-
-  if (Serial.available() > 0) {
-    char c = Serial.read();
-
-    if (c == '1') {
-      blinkLocalLed();
-      Serial.println("BLINK");
+      // Send data in a structured format
+      Serial.print("DATA:T=");
+      Serial.print(temperatureC, 2);
+      Serial.print(":H=");
+      Serial.print(humidity, 2);
+      Serial.println();
     }
   }
 }
