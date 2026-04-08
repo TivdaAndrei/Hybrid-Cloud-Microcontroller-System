@@ -1,10 +1,19 @@
 #include <DHT.h>
+#include <SPI.h>
+#include <MFRC522.h>
 
-const int LED_PIN = 13;
+// Status LED moved from D13 to D8 because D13 is now SPI SCK for the RC522.
+const int LED_PIN = 8;
 const int DHT_PIN = 7;
 const int DHT_TYPE = DHT11;
 
+// RC522 NFC reader (SPI). MOSI/MISO/SCK are fixed by the Uno's SPI hardware
+// (D11/D12/D13). SS and RST are configurable.
+const int RFID_SS_PIN  = 10;
+const int RFID_RST_PIN = 9;
+
 DHT dht(DHT_PIN, DHT_TYPE);
+MFRC522 mfrc522(RFID_SS_PIN, RFID_RST_PIN);
 
 unsigned long lastReadMs = 0;
 const unsigned long READ_INTERVAL_MS = 2000;
@@ -24,6 +33,10 @@ void setup() {
   Serial.begin(9600);
   dht.begin();
 
+  // Initialize SPI bus and the RC522 reader.
+  SPI.begin();
+  mfrc522.PCD_Init();
+
   Serial.println("Master started");
   Serial.println("Reading DHT11 every 15 seconds...");
 }
@@ -39,6 +52,18 @@ void loop() {
       digitalWrite(LED_PIN, LOW);
       Serial.println("LED_STATUS:OFF"); // Report status back
     }
+  }
+
+  // Poll the RC522 for a new tag. PICC_IsNewCardPresent() is non-blocking
+  // and returns false almost instantly when no card is present.
+  if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
+    Serial.print("NFC:UID=");
+    for (byte i = 0; i < mfrc522.uid.size; i++) {
+      if (mfrc522.uid.uidByte[i] < 0x10) Serial.print('0');
+      Serial.print(mfrc522.uid.uidByte[i], HEX);
+    }
+    Serial.println();
+    mfrc522.PICC_HaltA();
   }
 
   // Read sensor data at regular intervals
