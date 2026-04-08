@@ -49,9 +49,16 @@ Strict rules:
 """
 
 
-def _build_voice_user_prompt(transcript: str, snapshot: dict) -> str:
+def _build_voice_user_prompt(transcript: str, snapshot: dict, user_name: str | None) -> str:
+    user_line = (
+        f"The speaker has been identified by face recognition as \"{user_name}\". "
+        "Address them by name when it sounds natural.\n"
+        if user_name
+        else "The speaker is unidentified.\n"
+    )
     return (
-        "Current sensor readings:\n"
+        user_line
+        + "Current sensor readings:\n"
         f"- temperature: {snapshot.get('temperature', 'N/A')} C\n"
         f"- humidity: {snapshot.get('humidity', 'N/A')} %\n"
         f"- master LED: {snapshot.get('led_status', 'N/A')}\n"
@@ -61,7 +68,7 @@ def _build_voice_user_prompt(transcript: str, snapshot: dict) -> str:
     )
 
 
-def voice_command(transcript: str, snapshot: dict) -> dict:
+def voice_command(transcript: str, snapshot: dict, user_name: str | None = None) -> dict:
     """
     Interpret a spoken command via Ollama.
 
@@ -74,7 +81,7 @@ def voice_command(transcript: str, snapshot: dict) -> dict:
 
     payload = {
         "model": OLLAMA_MODEL,
-        "prompt": _build_voice_user_prompt(transcript, snapshot),
+        "prompt": _build_voice_user_prompt(transcript, snapshot, user_name),
         "system": VOICE_SYSTEM_PROMPT,
         "format": "json",
         "stream": False,

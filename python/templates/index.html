@@ -564,6 +564,116 @@
             margin-bottom: 2px;
         }
 
+        /* ── Face ID modal ── */
+        .face-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.78);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            animation: fadeIn 0.25s ease both;
+        }
+        .face-modal.show { display: flex; }
+        .face-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 24px;
+            width: min(440px, 92vw);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .face-title {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        .face-video-wrap {
+            position: relative;
+            width: 320px;
+            height: 240px;
+            border-radius: 16px;
+            overflow: hidden;
+            background: #000;
+            border: 2px solid var(--border);
+        }
+        .face-video-wrap.matched { border-color: var(--success); box-shadow: 0 0 0 4px rgba(74,222,128,0.18); }
+        .face-video-wrap.scanning { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(0,212,255,0.18); }
+        .face-video-wrap.error { border-color: var(--danger); }
+        #face-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);  /* mirror so it feels like a selfie cam */
+        }
+        #face-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+        .face-status {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            min-height: 1.4em;
+            text-align: center;
+        }
+        .face-status.ok    { color: var(--success); }
+        .face-status.warn  { color: var(--warning); }
+        .face-status.bad   { color: var(--danger); }
+        .face-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .face-btn {
+            background: var(--accent-dim);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            border-radius: 10px;
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        .face-btn:hover { background: rgba(0,212,255,0.25); }
+        .face-btn.secondary {
+            background: transparent;
+            color: var(--text-secondary);
+            border-color: var(--border);
+        }
+        .face-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .face-enroll-row {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        }
+        .face-enroll-row input {
+            flex: 1;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 8px 12px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+        .face-enroll-row input:focus { outline: none; border-color: var(--accent); }
+        .face-users-list {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
         /* ── Responsive ── */
         @media (max-width: 600px) {
             .dash-main {
@@ -598,7 +708,7 @@
 
         <div class="auth-buttons">
             <!-- Face ID button -->
-            <button class="auth-btn" onclick="showToast('Face ID coming soon')">
+            <button class="auth-btn" onclick="openFaceModal()">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M3 7V5a2 2 0 0 1 2-2h2"/>
                     <path d="M17 3h2a2 2 0 0 1 2 2v2"/>
@@ -864,6 +974,34 @@
 
 <!-- Toast -->
 <div id="toast"></div>
+
+<!-- Face ID modal -->
+<div id="face-modal" class="face-modal" role="dialog" aria-labelledby="face-title">
+    <div class="face-card">
+        <div class="face-title" id="face-title">Face ID</div>
+        <div class="face-video-wrap" id="face-video-wrap">
+            <video id="face-video" autoplay muted playsinline></video>
+            <canvas id="face-overlay"></canvas>
+        </div>
+        <div class="face-status" id="face-status">Loading models…</div>
+        <div class="face-actions" id="face-default-actions">
+            <button class="face-btn" id="face-identify-btn" disabled>Scan</button>
+            <button class="face-btn secondary" onclick="showFaceEnrollUI()">Enroll new user</button>
+            <button class="face-btn secondary" onclick="closeFaceModal()">Cancel</button>
+        </div>
+        <div class="face-actions" id="face-enroll-actions" style="display:none; flex-direction:column; width:100%;">
+            <div class="face-enroll-row">
+                <input id="face-enroll-name" type="text" placeholder="Your name" maxlength="32" autocomplete="off">
+                <button class="face-btn" id="face-enroll-btn">Capture</button>
+            </div>
+            <button class="face-btn secondary" onclick="hideFaceEnrollUI()" style="margin-top:6px;">Back</button>
+        </div>
+        <div class="face-users-list" id="face-users-list"></div>
+    </div>
+</div>
+
+<!-- face-api.js (vladmandic's actively maintained fork) -->
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/dist/face-api.min.js"></script>
 
 <script>
     const ARC_LEN = 308;
@@ -1192,6 +1330,234 @@
         }
     }
 
+    // ── Face ID ──
+    const FACE_MODELS_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/model';
+    let faceModelsLoaded = false;
+    let faceStream = null;
+    let faceScanInterval = null;
+    let currentUser = null;  // set after a successful face login
+
+    const faceModal       = document.getElementById('face-modal');
+    const faceVideo       = document.getElementById('face-video');
+    const faceVideoWrap   = document.getElementById('face-video-wrap');
+    const faceStatus      = document.getElementById('face-status');
+    const faceUsersList   = document.getElementById('face-users-list');
+    const faceIdentifyBtn = document.getElementById('face-identify-btn');
+    const faceEnrollBtn   = document.getElementById('face-enroll-btn');
+    const faceEnrollName  = document.getElementById('face-enroll-name');
+    const faceDefaultActions = document.getElementById('face-default-actions');
+    const faceEnrollActions  = document.getElementById('face-enroll-actions');
+
+    function setFaceStatus(text, kind) {
+        faceStatus.textContent = text;
+        faceStatus.className = 'face-status' + (kind ? ' ' + kind : '');
+        faceVideoWrap.classList.remove('matched', 'scanning', 'error');
+        if (kind === 'ok')   faceVideoWrap.classList.add('matched');
+        if (kind === 'warn') faceVideoWrap.classList.add('scanning');
+        if (kind === 'bad')  faceVideoWrap.classList.add('error');
+    }
+
+    async function loadFaceModels() {
+        if (faceModelsLoaded) return true;
+        if (typeof faceapi === 'undefined') {
+            setFaceStatus('face-api.js failed to load (check network).', 'bad');
+            return false;
+        }
+        try {
+            await Promise.all([
+                faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODELS_URL),
+                faceapi.nets.faceLandmark68Net.loadFromUri(FACE_MODELS_URL),
+                faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODELS_URL),
+            ]);
+            faceModelsLoaded = true;
+            return true;
+        } catch (e) {
+            setFaceStatus('Failed to load face models: ' + e.message, 'bad');
+            return false;
+        }
+    }
+
+    async function startFaceCamera() {
+        try {
+            faceStream = await navigator.mediaDevices.getUserMedia({
+                video: { width: 320, height: 240, facingMode: 'user' },
+                audio: false
+            });
+            faceVideo.srcObject = faceStream;
+            await faceVideo.play();
+            return true;
+        } catch (e) {
+            setFaceStatus('Camera permission denied.', 'bad');
+            return false;
+        }
+    }
+
+    function stopFaceCamera() {
+        if (faceScanInterval) { clearInterval(faceScanInterval); faceScanInterval = null; }
+        if (faceStream) {
+            faceStream.getTracks().forEach(t => t.stop());
+            faceStream = null;
+        }
+        faceVideo.srcObject = null;
+    }
+
+    async function refreshEnrolledUsers() {
+        try {
+            const res = await fetch('/face/users');
+            const data = await res.json();
+            const users = data.users || [];
+            if (users.length === 0) {
+                faceUsersList.textContent = 'No users enrolled yet — use "Enroll new user".';
+            } else {
+                faceUsersList.textContent = 'Enrolled: ' + users.join(', ');
+            }
+            return users;
+        } catch (e) {
+            faceUsersList.textContent = '';
+            return [];
+        }
+    }
+
+    async function detectDescriptor() {
+        // Run a single detection pass and return a 128-d Float32Array, or null.
+        const opts = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+        const result = await faceapi
+            .detectSingleFace(faceVideo, opts)
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+        return result ? result.descriptor : null;
+    }
+
+    async function identifyOnce() {
+        if (!faceModelsLoaded) return;
+        const descriptor = await detectDescriptor();
+        if (!descriptor) {
+            setFaceStatus('No face detected — look at the camera.', 'warn');
+            return;
+        }
+        setFaceStatus('Matching…', 'warn');
+        try {
+            const res = await fetch('/face/identify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ descriptor: Array.from(descriptor) })
+            });
+            const data = await res.json();
+            if (data.matched) {
+                setFaceStatus(`Welcome, ${data.name}! (distance ${data.distance})`, 'ok');
+                currentUser = data.name;
+                // Stop the scanning loop and unlock after a brief celebration.
+                if (faceScanInterval) { clearInterval(faceScanInterval); faceScanInterval = null; }
+                setTimeout(() => {
+                    closeFaceModal();
+                    enterDashboard();
+                }, 800);
+            } else if (data.enrolled === 0) {
+                setFaceStatus('No users enrolled. Click "Enroll new user".', 'warn');
+            } else {
+                setFaceStatus(`Not recognized (best distance ${data.distance}). Try again or enroll.`, 'bad');
+            }
+        } catch (e) {
+            setFaceStatus('Identify request failed: ' + e.message, 'bad');
+        }
+    }
+
+    function startContinuousScan() {
+        if (faceScanInterval) return;
+        faceScanInterval = setInterval(async () => {
+            // Skip if a previous identify is mid-flight (cheap guard via status text)
+            if (faceStatus.textContent.startsWith('Matching')) return;
+            await identifyOnce();
+        }, 1500);
+    }
+
+    async function openFaceModal() {
+        faceModal.classList.add('show');
+        hideFaceEnrollUI();
+        setFaceStatus('Loading models…', 'warn');
+        const ok = await loadFaceModels();
+        if (!ok) return;
+        const cam = await startFaceCamera();
+        if (!cam) return;
+        const users = await refreshEnrolledUsers();
+        faceIdentifyBtn.disabled = false;
+        if (users.length === 0) {
+            setFaceStatus('No users enrolled yet. Click "Enroll new user".', 'warn');
+        } else {
+            setFaceStatus('Look at the camera…', 'warn');
+            startContinuousScan();
+        }
+    }
+
+    function closeFaceModal() {
+        faceModal.classList.remove('show');
+        stopFaceCamera();
+        setFaceStatus('', '');
+    }
+
+    function showFaceEnrollUI() {
+        if (faceScanInterval) { clearInterval(faceScanInterval); faceScanInterval = null; }
+        faceDefaultActions.style.display = 'none';
+        faceEnrollActions.style.display = 'flex';
+        faceEnrollName.value = '';
+        faceEnrollName.focus();
+        setFaceStatus('Type your name, then press Capture while looking at the camera.', 'warn');
+    }
+
+    function hideFaceEnrollUI() {
+        faceDefaultActions.style.display = 'flex';
+        faceEnrollActions.style.display = 'none';
+    }
+
+    async function doEnroll() {
+        const name = (faceEnrollName.value || '').trim();
+        if (!name) {
+            setFaceStatus('Please enter a name first.', 'bad');
+            return;
+        }
+        if (!faceModelsLoaded) return;
+        setFaceStatus('Capturing…', 'warn');
+        faceEnrollBtn.disabled = true;
+        try {
+            const descriptor = await detectDescriptor();
+            if (!descriptor) {
+                setFaceStatus('No face detected. Try again.', 'bad');
+                return;
+            }
+            const res = await fetch('/face/enroll', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, descriptor: Array.from(descriptor) })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                setFaceStatus(`Enrolled "${data.name}". You can now log in.`, 'ok');
+                await refreshEnrolledUsers();
+                setTimeout(() => {
+                    hideFaceEnrollUI();
+                    setFaceStatus('Look at the camera…', 'warn');
+                    startContinuousScan();
+                }, 1200);
+            } else {
+                setFaceStatus(data.message || 'Enroll failed.', 'bad');
+            }
+        } catch (e) {
+            setFaceStatus('Enroll failed: ' + e.message, 'bad');
+        } finally {
+            faceEnrollBtn.disabled = false;
+        }
+    }
+
+    faceIdentifyBtn.addEventListener('click', identifyOnce);
+    faceEnrollBtn.addEventListener('click', doEnroll);
+    faceEnrollName.addEventListener('keydown', e => { if (e.key === 'Enter') doEnroll(); });
+
+    // Expose for the inline onclicks in markup
+    window.openFaceModal     = openFaceModal;
+    window.closeFaceModal    = closeFaceModal;
+    window.showFaceEnrollUI  = showFaceEnrollUI;
+    window.hideFaceEnrollUI  = hideFaceEnrollUI;
+
     // ── Voice / Push-to-talk ──
     const pttBtn        = document.getElementById('ptt-btn');
     const voiceHint     = document.getElementById('voice-hint');
@@ -1236,7 +1602,7 @@
             const res = await fetch('/ai/voice', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text })
+                body: JSON.stringify({ text, user: currentUser })
             });
             const data = await res.json();
             voiceReply.textContent = data.speech || '(no reply)';

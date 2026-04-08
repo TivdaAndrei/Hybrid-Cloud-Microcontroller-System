@@ -4,6 +4,8 @@ import threading
 import time
 import re
 import os
+import math
+import json
 import queue
 from datetime import datetime
 
@@ -13,6 +15,36 @@ app = Flask(__name__)
 
 AI_INTERVAL_SECONDS = int(os.environ.get('AI_INTERVAL_SECONDS', '30'))
 AI_LOG_MAX = 20
+
+# --- Face recognition storage ---
+FACE_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'users.json')
+# Euclidean-distance threshold for matching face descriptors. face-api.js
+# uses 0.6 by default; 0.5 is a bit stricter and reduces false positives.
+FACE_MATCH_THRESHOLD = float(os.environ.get('FACE_MATCH_THRESHOLD', '0.5'))
+face_lock = threading.Lock()
+
+
+def _load_face_db():
+    """Return list of {name, descriptor} from disk. Empty list if missing/corrupt."""
+    try:
+        with open(FACE_DB_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            if isinstance(data, list):
+                return data
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    return []
+
+
+def _save_face_db(users):
+    with open(FACE_DB_PATH, 'w', encoding='utf-8') as f:
+        json.dump(users, f)
+
+
+def _euclidean(a, b):
+    if len(a) != len(b):
+        return float('inf')
+    return math.sqrt(sum((x - y) ** 2 for x, y in zip(a, b)))
 
 # --- Command Queue (for sending commands to Arduino from Flask routes) ---
 command_queue = queue.Queue()
@@ -227,6 +259,97 @@ def ai_analyze_now():
             'last_run': ai_state['last_run'],
         })
 
+@app.route('/face/users', methods=['GET'])
+def face_users():
+    """Return the list of enrolled user names (no descriptors)."""
+    with face_lock:
+        users = _load_face_db()
+    return jsonify({'users': [u.get('name', '') for u in users]})
+
+
+@app.route('/face/enroll', methods=['POST'])
+def face_enroll():
+    """
+    Body: {"name": "...", "descriptor": [128 floats]}
+    Stores or replaces the descriptor for that name.
+    """
+    payload = request.get_json(silent=True) or {}
+    name = (payload.get('name') or '').strip()
+    descriptor = payload.get('descriptor')
+    if not name:
+        return jsonify({'status': 'error', 'message': 'Name is required'}), 400
+    if not isinstance(descriptor, list) or len(descriptor) != 128:
+        return jsonify({'status': 'error', 'message': 'Descriptor must be a 128-float array'}), 400
+    try:
+        descriptor = [float(x) for x in descriptor]
+    except (TypeError, ValueError):
+        return jsonify({'status': 'error', 'message': 'Descriptor values must be numbers'}), 400
+
+    with face_lock:
+        users = _load_face_db()
+        # Replace existing entry for this name (case-insensitive) or append.
+        replaced = False
+        for u in users:
+            if u.get('name', '').lower() == name.lower():
+                u['descriptor'] = descriptor
+                u['name'] = name
+                replaced = True
+                break
+        if not replaced:
+            users.append({'name': name, 'descriptor': descriptor})
+        _save_face_db(users)
+
+    return jsonify({'status': 'ok', 'name': name, 'replaced': replaced, 'count': len(users)})
+
+
+@app.route('/face/identify', methods=['POST'])
+def face_identify():
+    """
+    Body: {"descriptor": [128 floats]}
+    Returns the closest enrolled user if distance <= threshold.
+    """
+    payload = request.get_json(silent=True) or {}
+    descriptor = payload.get('descriptor')
+    if not isinstance(descriptor, list) or len(descriptor) != 128:
+        return jsonify({'matched': False, 'reason': 'Invalid descriptor'}), 400
+
+    with face_lock:
+        users = _load_face_db()
+
+    if not users:
+        return jsonify({'matched': False, 'reason': 'No enrolled users', 'enrolled': 0})
+
+    best_name = None
+    best_dist = float('inf')
+    for u in users:
+        d = _euclidean(descriptor, u.get('descriptor', []))
+        if d < best_dist:
+            best_dist = d
+            best_name = u.get('name', '')
+
+    matched = best_dist <= FACE_MATCH_THRESHOLD
+    return jsonify({
+        'matched': matched,
+        'name': best_name if matched else None,
+        'distance': round(best_dist, 4),
+        'threshold': FACE_MATCH_THRESHOLD,
+        'enrolled': len(users),
+    })
+
+
+@app.route('/face/users/<name>', methods=['DELETE'])
+def face_delete_user(name):
+    target = (name or '').strip().lower()
+    if not target:
+        return jsonify({'status': 'error'}), 400
+    with face_lock:
+        users = _load_face_db()
+        before = len(users)
+        users = [u for u in users if u.get('name', '').lower() != target]
+        _save_face_db(users)
+    return jsonify({'status': 'ok', 'removed': before - len(users)})
+
+
 @app.route('/ai/voice', methods=['POST'])
 def ai_voice():
     """
@@ -236,6 +359,7 @@ def ai_voice():
     """
     payload = request.get_json(silent=True) or {}
     transcript = (payload.get('text') or '').strip()
+    user_name = (payload.get('user') or '').strip() or None
     if not transcript:
         return jsonify({'action': 'none', 'speech': "I didn't hear anything.", 'transcript': ''}), 400
 
@@ -247,7 +371,7 @@ def ai_voice():
             'transcript': transcript,
         })
 
-    decision = ollama_voice_command(transcript, snapshot)
+    decision = ollama_voice_command(transcript, snapshot, user_name)
     action = decision.get('action', 'none')
     executed = False
 
