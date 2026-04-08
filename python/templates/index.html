@@ -760,7 +760,7 @@
             setTemperature(data.temperature);
             setHumidity(data.humidity);
             setLed(data.led_status);
-            setPot(data.pot_value);
+            setPot(data.led_status === 'ON' ? data.pot_value : 'N/A');
         }
     }
 
