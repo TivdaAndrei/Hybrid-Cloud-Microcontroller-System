@@ -419,6 +419,151 @@
 
         #bulb-svg { transition: filter 0.25s ease; }
 
+        /* ── Smart AI card ── */
+        .ai-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .ai-controls {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .ai-analyze-btn {
+            background: var(--accent-dim);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            border-radius: 10px;
+            padding: 8px 14px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease;
+        }
+        .ai-analyze-btn:hover { background: rgba(0,212,255,0.25); }
+        .ai-analyze-btn:active { transform: scale(0.97); }
+        .ai-analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .ai-summary {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 12px 14px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+        .ai-summary-line { font-size: 0.85rem; color: var(--text-secondary); }
+        .ai-summary-action { font-size: 1rem; color: var(--text-primary); font-weight: 500; }
+        .ai-action-led_on  { color: var(--success); }
+        .ai-action-led_off { color: var(--warning); }
+        .ai-action-none    { color: var(--text-secondary); }
+
+        .ai-log {
+            max-height: 220px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .ai-log-empty {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-align: center;
+            padding: 12px;
+        }
+        .ai-log-entry {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.03);
+            border-left: 3px solid var(--text-secondary);
+            border-radius: 6px;
+            font-size: 0.8rem;
+        }
+        .ai-log-entry.executed { border-left-color: var(--accent); }
+        .ai-log-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            color: var(--text-secondary);
+        }
+        .ai-log-reason { color: var(--text-primary); }
+
+        /* ── Voice / Push-to-talk card ── */
+        .voice-body {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .ptt-btn {
+            flex-shrink: 0;
+            width: 88px;
+            height: 88px;
+            border-radius: 50%;
+            border: 2px solid var(--accent);
+            background: var(--accent-dim);
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease, box-shadow 0.3s ease;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        .ptt-btn:hover { background: rgba(0,212,255,0.25); }
+        .ptt-btn.recording {
+            background: rgba(248,113,113,0.25);
+            border-color: var(--danger);
+            color: var(--danger);
+            box-shadow: 0 0 0 6px rgba(248,113,113,0.18);
+            animation: pulse-rec 1.2s ease-in-out infinite;
+        }
+        .ptt-btn.thinking {
+            background: rgba(251,191,36,0.18);
+            border-color: var(--warning);
+            color: var(--warning);
+        }
+        .ptt-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        @keyframes pulse-rec {
+            0%, 100% { box-shadow: 0 0 0 6px rgba(248,113,113,0.18); }
+            50%      { box-shadow: 0 0 0 12px rgba(248,113,113,0.05); }
+        }
+
+        .voice-panel {
+            flex: 1;
+            min-width: 220px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .voice-hint { font-size: 0.8rem; color: var(--text-secondary); }
+        .voice-line {
+            padding: 10px 12px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            font-size: 0.9rem;
+            min-height: 38px;
+        }
+        .voice-line .voice-label {
+            display: block;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-secondary);
+            margin-bottom: 2px;
+        }
+
         /* ── Responsive ── */
         @media (max-width: 600px) {
             .dash-main {
@@ -595,11 +740,14 @@
 
         <!-- Light Intensity (full width) -->
         <div class="card card-full">
-            <div class="card-label">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                </svg>
-                Light Intensity
+            <div class="card-label" style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="display:flex; align-items:center; gap:8px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                    Light Intensity
+                </span>
+                <span id="slave-led-status" style="font-size:0.75rem; letter-spacing:0.06em; color:var(--text-secondary);">Slave: --</span>
             </div>
             <div class="intensity-inner">
                 <!--
@@ -651,6 +799,66 @@
             </div>
         </div>
 
+        <!-- Voice / Push-to-talk (full width) -->
+        <div class="card card-full">
+            <div class="card-label">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+                Voice Control
+            </div>
+            <div class="voice-body">
+                <button id="ptt-btn" class="ptt-btn" title="Hold to talk" aria-label="Push to talk">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                        <line x1="12" y1="19" x2="12" y2="23"/>
+                        <line x1="8" y1="23" x2="16" y2="23"/>
+                    </svg>
+                </button>
+                <div class="voice-panel">
+                    <div class="voice-hint" id="voice-hint">Hold the mic and say something like "what's the temperature" or "turn the light on".</div>
+                    <div class="voice-line"><span class="voice-label">You said</span><span id="voice-transcript">—</span></div>
+                    <div class="voice-line"><span class="voice-label">HomeOS</span><span id="voice-reply">—</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Smart AI (full width) -->
+        <div class="card card-full">
+            <div class="ai-header">
+                <div class="card-label" style="margin-bottom:0;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2a5 5 0 0 0-5 5v3a5 5 0 0 0 10 0V7a5 5 0 0 0-5-5z"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                        <line x1="12" y1="19" x2="12" y2="22"/>
+                    </svg>
+                    Smart AI (Ollama)
+                </div>
+                <div class="ai-controls">
+                    <button class="ai-analyze-btn" id="ai-analyze-btn" onclick="aiAnalyzeNow()">Analyze now</button>
+                    <div class="toggle-wrap">
+                        <span class="toggle-label-text">Auto</span>
+                        <label class="switch">
+                            <input type="checkbox" id="ai-toggle" onchange="aiToggle()" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="ai-summary">
+                <div class="ai-summary-line">Last run: <span id="ai-last-run">never</span></div>
+                <div class="ai-summary-action">Decision: <span id="ai-last-action" class="ai-action-none">—</span></div>
+                <div class="ai-summary-line">Reason: <span id="ai-last-reason">awaiting first analysis…</span></div>
+            </div>
+            <div class="ai-log" id="ai-log">
+                <div class="ai-log-empty">No AI activity yet.</div>
+            </div>
+        </div>
+
     </main>
 </div>
 
@@ -679,6 +887,7 @@
     // ── State ──
     let lastData = {};
     let pollingInterval = null;
+    let aiPollingInterval = null;
     let isDashboardActive = false;
     let toggleDebounce = null;
 
@@ -727,11 +936,15 @@
     function startPolling() {
         fetchData();
         pollingInterval = setInterval(fetchData, 500);
+        fetchAiState();
+        aiPollingInterval = setInterval(fetchAiState, 3000);
     }
 
     function stopPolling() {
         clearInterval(pollingInterval);
         pollingInterval = null;
+        clearInterval(aiPollingInterval);
+        aiPollingInterval = null;
     }
 
     async function fetchData() {
@@ -754,13 +967,15 @@
             document.getElementById('temp-bar').style.background = '#8b8b9e';
             document.getElementById('hum-bar').style.background  = '#8b8b9e';
             setLed('N/A');
+            setSlaveLed('N/A');
             setPot('N/A');
         } else {
             setStatus(true, 'Connected');
             setTemperature(data.temperature);
             setHumidity(data.humidity);
             setLed(data.led_status);
-            setPot(data.led_status === 'ON' ? data.pot_value : 'N/A');
+            setSlaveLed(data.slave_led_status);
+            setPot(data.slave_led_status === 'ON' ? data.pot_value : 'N/A');
         }
     }
 
@@ -815,6 +1030,20 @@
             ledGradEdge.setAttribute('stop-color', '#333');
             ledFilament.setAttribute('stroke', '#555');
             ledBulbIcon.style.filter = 'none';
+        }
+    }
+
+    function setSlaveLed(status) {
+        const el = document.getElementById('slave-led-status');
+        if (status === 'ON') {
+            el.textContent = 'Slave: ON';
+            el.style.color = 'var(--success)';
+        } else if (status === 'OFF') {
+            el.textContent = 'Slave: OFF';
+            el.style.color = 'var(--danger)';
+        } else {
+            el.textContent = 'Slave: --';
+            el.style.color = 'var(--text-secondary)';
         }
     }
 
@@ -881,6 +1110,211 @@
         } catch (e) {
             // Next poll will correct the state
         }
+    }
+
+    // ── Smart AI ──
+    const aiToggleEl   = document.getElementById('ai-toggle');
+    const aiAnalyzeBtn = document.getElementById('ai-analyze-btn');
+    const aiLastRunEl  = document.getElementById('ai-last-run');
+    const aiActionEl   = document.getElementById('ai-last-action');
+    const aiReasonEl   = document.getElementById('ai-last-reason');
+    const aiLogEl      = document.getElementById('ai-log');
+
+    function formatAction(action) {
+        if (action === 'led_on')  return 'Turn LED ON';
+        if (action === 'led_off') return 'Turn LED OFF';
+        return 'No action';
+    }
+
+    function applyAiState(state) {
+        aiToggleEl.checked = !!state.enabled;
+        aiLastRunEl.textContent = state.last_run || 'never';
+
+        const decision = state.last_decision;
+        if (decision) {
+            aiActionEl.textContent = formatAction(decision.action);
+            aiActionEl.className = 'ai-action-' + decision.action;
+            aiReasonEl.textContent = decision.reason || '—';
+        } else {
+            aiActionEl.textContent = '—';
+            aiActionEl.className = 'ai-action-none';
+            aiReasonEl.textContent = 'awaiting first analysis…';
+        }
+
+        const log = state.log || [];
+        if (!log.length) {
+            aiLogEl.innerHTML = '<div class="ai-log-empty">No AI activity yet.</div>';
+            return;
+        }
+        aiLogEl.innerHTML = log.slice(0, 10).map(entry => {
+            const dec = entry.decision || {};
+            const cls = entry.executed ? 'ai-log-entry executed' : 'ai-log-entry';
+            const ts = entry.timestamp || '';
+            const tag = entry.executed ? 'executed' : 'no-op';
+            return `<div class="${cls}">
+                <div class="ai-log-row"><span>${ts}</span><span>${formatAction(dec.action)} · ${tag}</span></div>
+                <div class="ai-log-reason">${(dec.reason || '').replace(/[<>]/g, '')}</div>
+            </div>`;
+        }).join('');
+    }
+
+    async function fetchAiState() {
+        try {
+            const res = await fetch('/ai/state');
+            applyAiState(await res.json());
+        } catch (e) {
+            // silent — next tick will retry
+        }
+    }
+
+    async function aiToggle() {
+        try {
+            const res = await fetch('/ai/toggle', { method: 'POST' });
+            const data = await res.json();
+            aiToggleEl.checked = !!data.enabled;
+            showToast('AI ' + (data.enabled ? 'enabled' : 'disabled'));
+        } catch (e) {
+            showToast('Failed to toggle AI');
+        }
+    }
+
+    async function aiAnalyzeNow() {
+        aiAnalyzeBtn.disabled = true;
+        aiAnalyzeBtn.textContent = 'Analyzing…';
+        try {
+            await fetch('/ai/analyze', { method: 'POST' });
+            await fetchAiState();
+        } catch (e) {
+            showToast('Analyze failed');
+        } finally {
+            aiAnalyzeBtn.disabled = false;
+            aiAnalyzeBtn.textContent = 'Analyze now';
+        }
+    }
+
+    // ── Voice / Push-to-talk ──
+    const pttBtn        = document.getElementById('ptt-btn');
+    const voiceHint     = document.getElementById('voice-hint');
+    const voiceTranscript = document.getElementById('voice-transcript');
+    const voiceReply    = document.getElementById('voice-reply');
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let isRecording = false;
+    let lastTranscript = '';
+
+    function setVoiceState(state) {
+        // state: 'idle' | 'recording' | 'thinking'
+        pttBtn.classList.remove('recording', 'thinking');
+        if (state === 'recording') {
+            pttBtn.classList.add('recording');
+            voiceHint.textContent = 'Listening… release to send.';
+        } else if (state === 'thinking') {
+            pttBtn.classList.add('thinking');
+            voiceHint.textContent = 'Thinking…';
+        } else {
+            voiceHint.textContent = 'Hold the mic and say something like "what\'s the temperature" or "turn the light on".';
+        }
+    }
+
+    function speak(text) {
+        if (!text || !window.speechSynthesis) return;
+        try {
+            window.speechSynthesis.cancel();
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.rate = 1.0;
+            utter.pitch = 1.0;
+            window.speechSynthesis.speak(utter);
+        } catch (e) { /* ignore */ }
+    }
+
+    async function sendVoiceCommand(text) {
+        setVoiceState('thinking');
+        voiceTranscript.textContent = text;
+        voiceReply.textContent = '…';
+        try {
+            const res = await fetch('/ai/voice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+            const data = await res.json();
+            voiceReply.textContent = data.speech || '(no reply)';
+            speak(data.speech);
+            // Refresh AI log so the voice interaction shows up immediately
+            fetchAiState();
+        } catch (e) {
+            voiceReply.textContent = 'Request failed.';
+            showToast('Voice command failed');
+        } finally {
+            setVoiceState('idle');
+        }
+    }
+
+    if (!SpeechRecognition) {
+        pttBtn.disabled = true;
+        voiceHint.textContent = 'Voice control needs a Chromium-based browser (Chrome or Edge).';
+    } else {
+        recognition = new SpeechRecognition();
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+        recognition.continuous = false;
+
+        recognition.onresult = (event) => {
+            const result = event.results[0];
+            if (result && result[0]) {
+                lastTranscript = result[0].transcript;
+            }
+        };
+        recognition.onerror = (event) => {
+            isRecording = false;
+            setVoiceState('idle');
+            if (event.error === 'not-allowed') {
+                voiceHint.textContent = 'Microphone permission denied.';
+            } else if (event.error === 'no-speech') {
+                voiceHint.textContent = 'Didn\'t hear anything — try again.';
+            } else {
+                voiceHint.textContent = 'Speech recognition error: ' + event.error;
+            }
+        };
+        recognition.onend = () => {
+            isRecording = false;
+            if (lastTranscript) {
+                const t = lastTranscript;
+                lastTranscript = '';
+                sendVoiceCommand(t);
+            } else {
+                setVoiceState('idle');
+            }
+        };
+
+        const startRec = (e) => {
+            if (e) e.preventDefault();
+            if (isRecording) return;
+            try {
+                lastTranscript = '';
+                voiceTranscript.textContent = '…';
+                voiceReply.textContent = '—';
+                recognition.start();
+                isRecording = true;
+                setVoiceState('recording');
+            } catch (err) {
+                // Calling start() while already started throws — ignore.
+            }
+        };
+        const stopRec = (e) => {
+            if (e) e.preventDefault();
+            if (!isRecording) return;
+            try { recognition.stop(); } catch (err) { /* ignore */ }
+        };
+
+        pttBtn.addEventListener('mousedown', startRec);
+        pttBtn.addEventListener('mouseup', stopRec);
+        pttBtn.addEventListener('mouseleave', stopRec);
+        pttBtn.addEventListener('touchstart', startRec, { passive: false });
+        pttBtn.addEventListener('touchend', stopRec, { passive: false });
+        pttBtn.addEventListener('touchcancel', stopRec, { passive: false });
     }
 
     // ── Clock ──
