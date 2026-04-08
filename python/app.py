@@ -1,11 +1,15 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 import serial
 import threading
 import time
 import re
 import os
+import queue
 
 app = Flask(__name__)
+
+# --- Command Queue (for sending commands to Arduino from Flask routes) ---
+command_queue = queue.Queue()
 
 # --- Data Storage ---
 # A thread-safe way to store the latest sensor data
@@ -35,6 +39,15 @@ def read_from_arduino():
                 sensor_data['error'] = None
 
             while True:
+                # Drain any pending commands before blocking on readline
+                try:
+                    while True:
+                        cmd = command_queue.get_nowait()
+                        ser.write(cmd.encode('utf-8'))
+                        ser.flush()
+                except queue.Empty:
+                    pass
+
                 try:
                     line = ser.readline().decode('utf-8').strip()
                 except UnicodeDecodeError:
@@ -95,6 +108,17 @@ def get_data():
     """
     with data_lock:
         return jsonify(sensor_data)
+
+@app.route('/led', methods=['POST'])
+def set_led():
+    action = request.json.get('action', '')
+    if action == 'on':
+        command_queue.put('A')
+        return jsonify({'status': 'ok', 'command': 'A'})
+    elif action == 'off':
+        command_queue.put('S')
+        return jsonify({'status': 'ok', 'command': 'S'})
+    return jsonify({'status': 'error', 'message': 'Invalid action'}), 400
 
 if __name__ == '__main__':
     # Start the background thread that reads from the Arduino

@@ -3,288 +3,842 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arduino Sensor Dashboard</title>
+    <title>HomeOS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
-        * { box-sizing: border-box; }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #0f1117;
+            --bg-card: rgba(255,255,255,0.05);
+            --border: rgba(255,255,255,0.1);
+            --accent: #00d4ff;
+            --accent-dim: rgba(0,212,255,0.15);
+            --text-primary: #f0f0f0;
+            --text-secondary: #8b8b9e;
+            --success: #4ade80;
+            --danger: #f87171;
+            --warning: #fbbf24;
+        }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text-primary);
             min-height: 100vh;
-            margin: 0;
-            padding: 30px 16px;
-            background-color: #f0f2f5;
-            color: #333;
+            overflow-x: hidden;
         }
 
-        #dashboard {
-            text-align: center;
-            background-color: white;
-            padding: 36px 48px;
-            border-radius: 16px;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.1);
-            width: 440px;
+        /* ── Animations ── */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to   { opacity: 0; }
+        }
+        @keyframes pulse-dot {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.5); }
+            50%       { box-shadow: 0 0 0 6px rgba(74,222,128,0); }
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50%       { transform: translateY(-6px); }
+        }
+        @keyframes shimmer {
+            0%   { background-position: -200% center; }
+            100% { background-position:  200% center; }
         }
 
-        h1 {
-            color: #1a73e8;
-            margin: 0 0 28px;
-            font-size: 1.6em;
-        }
+        .fade-out { animation: fadeOut 0.4s ease forwards; }
+        .fade-in  { animation: fadeIn  0.4s ease forwards; }
 
-        /* ── two-column row ── */
-        .row {
-            display: flex;
-            gap: 16px;
-            margin-bottom: 16px;
-        }
-        .row .sensor-card {
-            flex: 1;
-            margin-bottom: 0;
-        }
-
-        /* ── generic card ── */
-        .sensor-card {
-            background-color: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 10px;
-            padding: 18px 16px;
-            margin-bottom: 16px;
-        }
-        .sensor-card h2 {
-            margin: 0 0 10px;
-            color: #5f6368;
-            font-size: 1em;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        .sensor-value {
-            font-size: 2.6em;
-            font-weight: 300;
-            color: #202124;
-            margin: 0;
-            line-height: 1;
-        }
-        .unit {
-            font-size: 1em;
-            color: #5f6368;
-        }
-
-        /* ── LED indicator ── */
-        .led-indicator {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 14px;
-            margin-top: 4px;
-        }
-        .led-bulb {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background-color: #ccc;
-            border: 3px solid #bbb;
-            transition: background-color 0.3s, box-shadow 0.3s;
-            flex-shrink: 0;
-        }
-        .led-bulb.on {
-            background-color: #ffe033;
-            border-color: #e6c200;
-            box-shadow: 0 0 14px 6px rgba(255,220,0,0.55);
-        }
-        .led-label {
-            font-size: 1.5em;
-            font-weight: 500;
-            color: #202124;
-        }
-
-        /* ── Light Intensity card ── */
-        #intensity-card { padding-bottom: 24px; }
-
-        #gauge-svg {
-            display: block;
-            margin: 0 auto;
-            overflow: visible;
-        }
-
-        #bulb-wrap {
+        /* ══════════════════════════════
+           LOGIN SCREEN
+        ══════════════════════════════ */
+        #login-screen {
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin-top: -8px;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 24px;
+            background: radial-gradient(ellipse at 50% 0%, rgba(0,212,255,0.08) 0%, transparent 70%),
+                        var(--bg);
         }
 
-        #bulb-svg {
-            transition: filter 0.25s ease;
+        .login-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            max-width: 420px;
+            width: 100%;
         }
 
-        /* ── status ── */
-        #status {
-            margin-top: 8px;
-            font-size: 0.88em;
-            min-height: 18px;
+        .login-home-icon {
+            animation: float 4s ease-in-out infinite;
+            margin-bottom: 8px;
+            cursor: pointer;
+            user-select: none;
         }
-        .error { color: #d93025; font-weight: bold; }
-        .ok    { color: #1e8e3e; font-weight: bold; }
+
+        .login-title {
+            font-size: 2.4rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, #f0f0f0 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .login-subtitle {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+        }
+
+        .auth-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            width: 100%;
+            margin-bottom: 32px;
+        }
+
+        .auth-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 28px 16px;
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(0,212,255,0.25);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        .auth-btn:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 24px rgba(0,212,255,0.2);
+            transform: translateY(-2px);
+        }
+
+        .auth-btn:active { transform: translateY(0); }
+
+        .auth-btn svg { color: var(--accent); }
+
+        .login-hint {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        .login-hint kbd {
+            display: inline-block;
+            padding: 2px 8px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+
+        /* Toast */
+        #toast {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: rgba(30,30,40,0.95);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 20px;
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            backdrop-filter: blur(12px);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            white-space: nowrap;
+        }
+        #toast.show { transform: translateX(-50%) translateY(0); }
+
+        /* ══════════════════════════════
+           DASHBOARD
+        ══════════════════════════════ */
+        #dashboard {
+            display: none;
+            min-height: 100vh;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .dash-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(15,17,23,0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .app-name {
+            font-size: 1.15rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+
+        .header-center #clock {
+            font-size: 0.95rem;
+            font-weight: 400;
+            color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .logout-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 0.85rem;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.1);
+            color: var(--text-primary);
+        }
+
+        /* Status bar */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 24px;
+            font-size: 0.83rem;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        #status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+            flex-shrink: 0;
+        }
+
+        #status-dot.connected {
+            background: var(--success);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        #status-dot.error { background: var(--danger); }
+
+        /* Main grid */
+        .dash-main {
+            padding: 24px;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            max-width: 900px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 22px 20px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            animation: fadeIn 0.4s ease both;
+        }
+
+        .card:nth-child(1) { animation-delay: 0.00s; }
+        .card:nth-child(2) { animation-delay: 0.06s; }
+        .card:nth-child(3) { animation-delay: 0.12s; }
+        .card:nth-child(4) { animation-delay: 0.18s; }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(0,212,255,0.08);
+        }
+
+        .card-full { grid-column: 1 / -1; }
+
+        .card-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-secondary);
+            margin-bottom: 14px;
+        }
+
+        .card-value {
+            font-size: 3rem;
+            font-weight: 300;
+            line-height: 1;
+            color: var(--text-primary);
+        }
+
+        .card-unit {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+        }
+
+        /* Colored bottom bar */
+        .card-bar {
+            height: 3px;
+            border-radius: 2px;
+            margin-top: 16px;
+            transition: background-color 0.6s ease;
+        }
+
+        /* Light status card */
+        .light-card-body {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .light-card-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        #led-bulb-icon {
+            transition: filter 0.3s ease;
+        }
+
+        #led-status-text {
+            font-size: 2.2rem;
+            font-weight: 300;
+            transition: color 0.3s ease;
+        }
+
+        /* iOS toggle switch */
+        .toggle-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toggle-label-text {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 56px;
+            height: 30px;
+        }
+
+        .switch input { opacity: 0; width: 0; height: 0; }
+
+        .slider {
+            position: absolute;
+            inset: 0;
+            background: rgba(255,255,255,0.12);
+            border-radius: 30px;
+            cursor: pointer;
+            transition: background 0.3s;
+            border: 1px solid var(--border);
+        }
+
+        .slider::before {
+            content: '';
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            left: 3px;
+            top: 3px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+
+        .switch input:checked + .slider { background: var(--accent); border-color: var(--accent); }
+        .switch input:checked + .slider::before { transform: translateX(26px); }
+
+        /* Intensity card */
+        .intensity-inner {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        #gauge-svg {
+            display: block;
+            overflow: visible;
+            flex-shrink: 0;
+        }
+
+        #bulb-svg { transition: filter 0.25s ease; }
+
+        /* ── Responsive ── */
+        @media (max-width: 600px) {
+            .dash-main {
+                grid-template-columns: 1fr;
+                padding: 16px;
+                gap: 12px;
+            }
+            .card-full { grid-column: auto; }
+            .card-value { font-size: 2.4rem; }
+            .dash-header { padding: 12px 16px; }
+            .app-name { font-size: 1rem; }
+            .header-center #clock { font-size: 0.8rem; }
+            .auth-buttons { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
-<div id="dashboard">
-    <h1>Sensor Dashboard</h1>
 
-    <!-- Temperature & Humidity -->
-    <div class="row">
-        <div class="sensor-card">
-            <h2>Temperature</h2>
-            <p class="sensor-value"><span id="temperature">--</span><span class="unit"> °C</span></p>
-        </div>
-        <div class="sensor-card">
-            <h2>Humidity</h2>
-            <p class="sensor-value"><span id="humidity">--</span><span class="unit"> %</span></p>
-        </div>
-    </div>
-
-    <!-- Master LED -->
-    <div class="sensor-card">
-        <h2>Master LED</h2>
-        <div class="led-indicator">
-            <div class="led-bulb" id="led-bulb"></div>
-            <span class="led-label" id="led-label">--</span>
-        </div>
-    </div>
-
-    <!-- Light Intensity -->
-    <div class="sensor-card" id="intensity-card">
-        <h2>Light Intensity</h2>
-
-        <!--
-            Semicircle gauge
-            Centre: (110, 118)   Radius: 98
-            Arc start (left): (12, 118)   Arc end (right): (208, 118)
-            Arc length: π × 98 ≈ 308
-        -->
-        <svg id="gauge-svg" viewBox="0 0 220 128" width="280" height="128">
-            <defs>
-                <linearGradient id="arc-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%"   stop-color="#f5a623"/>
-                    <stop offset="100%" stop-color="#ffe033"/>
-                </linearGradient>
-            </defs>
-
-            <!-- background track -->
-            <path d="M 12 118 A 98 98 0 0 1 208 118"
-                  fill="none" stroke="#e0e0e0" stroke-width="18" stroke-linecap="round"/>
-
-            <!-- value arc — dashoffset animated by JS -->
-            <path id="pot-arc"
-                  d="M 12 118 A 98 98 0 0 1 208 118"
-                  fill="none" stroke="url(#arc-grad)" stroke-width="18" stroke-linecap="round"
-                  stroke-dasharray="308" stroke-dashoffset="308"
-                  style="transition: stroke-dashoffset 0.25s ease;"/>
-
-            <!-- percentage label -->
-            <text id="gauge-pct" x="110" y="96"
-                  text-anchor="middle" font-size="30" font-weight="300" fill="#202124">--</text>
-            <text x="110" y="114"
-                  text-anchor="middle" font-size="11" fill="#9aa0a6">%</text>
-        </svg>
-
-        <!-- Light-bulb icon -->
-        <div id="bulb-wrap">
-            <svg id="bulb-svg" viewBox="0 0 100 128" width="72" height="92">
-                <defs>
-                    <radialGradient id="bulb-grad" cx="50%" cy="38%" r="52%">
-                        <stop offset="0%"   id="grad-center" stop-color="#ffffff" stop-opacity="0.9"/>
-                        <stop offset="100%" id="grad-edge"   stop-color="#d0d0d0" stop-opacity="1"/>
-                    </radialGradient>
-                </defs>
-
-                <!-- glass globe -->
-                <path id="bulb-body"
-                      d="M50,8 C27,8 11,25 11,46 C11,62 21,75 36,81 L36,90 L64,90 L64,81 C79,75 89,62 89,46 C89,25 73,8 50,8 Z"
-                      fill="url(#bulb-grad)" stroke="#c8c8c8" stroke-width="1.5"/>
-
-                <!-- filament -->
-                <polyline id="filament"
-                          points="39,76 50,60 61,76"
-                          fill="none" stroke="#bbb" stroke-width="2" stroke-linejoin="round"/>
-
-                <!-- base segments -->
-                <rect x="36" y="90" width="28" height="9"  rx="2" fill="#c0c0c0"/>
-                <rect x="38" y="99" width="24" height="9"  rx="2" fill="#b0b0b0"/>
-                <rect x="40" y="108" width="20" height="8" rx="2" fill="#a0a0a0"/>
+<!-- ══════════════ LOGIN SCREEN ══════════════ -->
+<div id="login-screen">
+    <div class="login-card">
+        <!-- Home icon (long-press on mobile = enter dashboard) -->
+        <div class="login-home-icon" id="home-icon" title="Long press to enter (mobile)">
+            <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/>
+                <path d="M9 21V12h6v9"/>
             </svg>
         </div>
-    </div>
 
-    <div id="status"></div>
+        <h1 class="login-title">HomeOS</h1>
+        <p class="login-subtitle">Smart Home Control Center</p>
+
+        <div class="auth-buttons">
+            <!-- Face ID button -->
+            <button class="auth-btn" onclick="showToast('Face ID coming soon')">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 7V5a2 2 0 0 1 2-2h2"/>
+                    <path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+                    <path d="M21 17v2a2 2 0 0 1-2 2h-2"/>
+                    <path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+                    <circle cx="9" cy="10" r="1" fill="currentColor"/>
+                    <circle cx="15" cy="10" r="1" fill="currentColor"/>
+                    <path d="M9 15c.83.83 2.17 1 3 1s2.17-.17 3-1"/>
+                </svg>
+                Face ID
+            </button>
+
+            <!-- NFC button -->
+            <button class="auth-btn" onclick="showToast('NFC coming soon')">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 20c4.42 0 8-3.58 8-8s-3.58-8-8-8-8 3.58-8 8"/>
+                    <path d="M12 16c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4"/>
+                    <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+                </svg>
+                NFC
+            </button>
+        </div>
+
+        <p class="login-hint">
+            Press <kbd>H</kbd> to enter &nbsp;·&nbsp; Or long-press the icon on mobile
+        </p>
+    </div>
 </div>
 
+<!-- ══════════════ DASHBOARD ══════════════ -->
+<div id="dashboard">
+
+    <!-- Header -->
+    <header class="dash-header">
+        <div class="header-left">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/>
+                <path d="M9 21V12h6v9"/>
+            </svg>
+            <span class="app-name">HomeOS</span>
+        </div>
+        <div class="header-center"><span id="clock">00:00:00</span></div>
+        <div class="header-right">
+            <button class="logout-btn" onclick="exitDashboard()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/>
+                    <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                Logout
+            </button>
+        </div>
+    </header>
+
+    <!-- Status bar -->
+    <div class="status-bar">
+        <span id="status-dot"></span>
+        <span id="status-text">Connecting...</span>
+    </div>
+
+    <!-- Sensor grid -->
+    <main class="dash-main">
+
+        <!-- Temperature -->
+        <div class="card">
+            <div class="card-label">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
+                </svg>
+                Temperature
+            </div>
+            <div>
+                <span class="card-value" id="temperature">--</span>
+                <span class="card-unit"> °C</span>
+            </div>
+            <div class="card-bar" id="temp-bar" style="background:#8b8b9e;"></div>
+        </div>
+
+        <!-- Humidity -->
+        <div class="card">
+            <div class="card-label">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4fc3f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2C6.48 2 2 7.5 2 13a10 10 0 0 0 20 0c0-5.5-4.48-11-10-11z"/>
+                </svg>
+                Humidity
+            </div>
+            <div>
+                <span class="card-value" id="humidity">--</span>
+                <span class="card-unit"> %</span>
+            </div>
+            <div class="card-bar" id="hum-bar" style="background:#8b8b9e;"></div>
+        </div>
+
+        <!-- Master Light (full width) -->
+        <div class="card card-full">
+            <div class="card-label">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="5"/>
+                    <line x1="12" y1="1" x2="12" y2="3"/>
+                    <line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/>
+                    <line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+                Master Light
+            </div>
+            <div class="light-card-body">
+                <div class="light-card-left">
+                    <!-- Bulb icon -->
+                    <svg id="led-bulb-icon" width="44" height="56" viewBox="0 0 100 128">
+                        <defs>
+                            <radialGradient id="led-bulb-grad" cx="50%" cy="38%" r="52%">
+                                <stop offset="0%"  id="led-grad-center" stop-color="#555" stop-opacity="0.9"/>
+                                <stop offset="100%" id="led-grad-edge"  stop-color="#333" stop-opacity="1"/>
+                            </radialGradient>
+                        </defs>
+                        <path d="M50,8 C27,8 11,25 11,46 C11,62 21,75 36,81 L36,90 L64,90 L64,81 C79,75 89,62 89,46 C89,25 73,8 50,8 Z"
+                              fill="url(#led-bulb-grad)" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+                        <polyline id="led-filament" points="39,76 50,60 61,76"
+                                  fill="none" stroke="#555" stroke-width="2" stroke-linejoin="round"/>
+                        <rect x="36" y="90" width="28" height="9"  rx="2" fill="#2a2a3a"/>
+                        <rect x="38" y="99" width="24" height="9"  rx="2" fill="#222230"/>
+                        <rect x="40" y="108" width="20" height="8" rx="2" fill="#1a1a28"/>
+                    </svg>
+                    <span class="card-value" id="led-status-text" style="color:var(--text-secondary);">--</span>
+                </div>
+                <div class="toggle-wrap">
+                    <span class="toggle-label-text">Toggle</span>
+                    <label class="switch">
+                        <input type="checkbox" id="led-toggle" onchange="toggleLed()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Light Intensity (full width) -->
+        <div class="card card-full">
+            <div class="card-label">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+                Light Intensity
+            </div>
+            <div class="intensity-inner">
+                <!--
+                    Semicircle gauge
+                    Centre: (110,118)  Radius: 98
+                    Arc length: π × 98 ≈ 308
+                -->
+                <svg id="gauge-svg" viewBox="0 0 220 128" width="260" height="128">
+                    <defs>
+                        <linearGradient id="arc-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%"   stop-color="#00d4ff"/>
+                            <stop offset="100%" stop-color="#4fc3f7"/>
+                        </linearGradient>
+                    </defs>
+                    <!-- background track -->
+                    <path d="M 12 118 A 98 98 0 0 1 208 118"
+                          fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="18" stroke-linecap="round"/>
+                    <!-- value arc -->
+                    <path id="pot-arc"
+                          d="M 12 118 A 98 98 0 0 1 208 118"
+                          fill="none" stroke="url(#arc-grad)" stroke-width="18" stroke-linecap="round"
+                          stroke-dasharray="308" stroke-dashoffset="308"
+                          style="transition: stroke-dashoffset 0.25s ease;"/>
+                    <!-- percentage label -->
+                    <text id="gauge-pct" x="110" y="96"
+                          text-anchor="middle" font-size="30" font-weight="300" fill="#f0f0f0">--</text>
+                    <text x="110" y="114"
+                          text-anchor="middle" font-size="11" fill="#8b8b9e">%</text>
+                </svg>
+
+                <!-- Animated bulb -->
+                <svg id="bulb-svg" viewBox="0 0 100 128" width="72" height="92">
+                    <defs>
+                        <radialGradient id="bulb-grad" cx="50%" cy="38%" r="52%">
+                            <stop offset="0%"  id="grad-center" stop-color="#555" stop-opacity="0.9"/>
+                            <stop offset="100%" id="grad-edge"  stop-color="#333" stop-opacity="1"/>
+                        </radialGradient>
+                    </defs>
+                    <path id="bulb-body"
+                          d="M50,8 C27,8 11,25 11,46 C11,62 21,75 36,81 L36,90 L64,90 L64,81 C79,75 89,62 89,46 C89,25 73,8 50,8 Z"
+                          fill="url(#bulb-grad)" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+                    <polyline id="filament"
+                              points="39,76 50,60 61,76"
+                              fill="none" stroke="#555" stroke-width="2" stroke-linejoin="round"/>
+                    <rect x="36" y="90" width="28" height="9"  rx="2" fill="#2a2a3a"/>
+                    <rect x="38" y="99" width="24" height="9"  rx="2" fill="#222230"/>
+                    <rect x="40" y="108" width="20" height="8" rx="2" fill="#1a1a28"/>
+                </svg>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
 <script>
-    const ARC_LEN = 308; // π × 98
+    const ARC_LEN = 308;
 
-    const potArc    = document.getElementById('pot-arc');
-    const gaugePct  = document.getElementById('gauge-pct');
-    const bulbSvg   = document.getElementById('bulb-svg');
-    const bulbBody  = document.getElementById('bulb-body');
-    const filament  = document.getElementById('filament');
-    const gradCenter = document.getElementById('grad-center');
-    const gradEdge   = document.getElementById('grad-edge');
+    // ── Gauge & bulb elements ──
+    const potArc      = document.getElementById('pot-arc');
+    const gaugePct    = document.getElementById('gauge-pct');
+    const bulbSvg     = document.getElementById('bulb-svg');
+    const gradCenter  = document.getElementById('grad-center');
+    const gradEdge    = document.getElementById('grad-edge');
+    const filament    = document.getElementById('filament');
 
+    // ── LED card elements ──
+    const ledBulbIcon   = document.getElementById('led-bulb-icon');
+    const ledGradCenter = document.getElementById('led-grad-center');
+    const ledGradEdge   = document.getElementById('led-grad-edge');
+    const ledFilament   = document.getElementById('led-filament');
+    const ledStatusText = document.getElementById('led-status-text');
+    const ledToggle     = document.getElementById('led-toggle');
+
+    // ── State ──
+    let lastData = {};
+    let pollingInterval = null;
+    let isDashboardActive = false;
+    let toggleDebounce = null;
+
+    // ── Utility ──
     function lerp(a, b, t) { return a + (b - a) * t; }
 
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    // ── Login / Logout ──
+    function enterDashboard() {
+        if (isDashboardActive) return;
+        isDashboardActive = true;
+        const login = document.getElementById('login-screen');
+        const dash  = document.getElementById('dashboard');
+        login.classList.add('fade-out');
+        setTimeout(() => {
+            login.style.display = 'none';
+            dash.style.display = 'flex';
+            dash.classList.add('fade-in');
+            startPolling();
+        }, 380);
+    }
+
+    function exitDashboard() {
+        isDashboardActive = false;
+        stopPolling();
+        const login = document.getElementById('login-screen');
+        const dash  = document.getElementById('dashboard');
+        dash.classList.add('fade-out');
+        setTimeout(() => {
+            dash.style.display = 'none';
+            dash.classList.remove('fade-out', 'fade-in');
+            login.style.display = 'flex';
+            login.classList.remove('fade-out');
+            login.classList.add('fade-in');
+            setTimeout(() => login.classList.remove('fade-in'), 400);
+        }, 380);
+    }
+
+    // ── Polling ──
+    function startPolling() {
+        fetchData();
+        pollingInterval = setInterval(fetchData, 500);
+    }
+
+    function stopPolling() {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+    }
+
+    async function fetchData() {
+        try {
+            const res  = await fetch('/data');
+            const data = await res.json();
+            lastData = data;
+            updateUI(data);
+        } catch (e) {
+            setStatus(false, 'Server unreachable');
+        }
+    }
+
+    // ── UI Updates ──
+    function updateUI(data) {
+        if (data.error) {
+            setStatus(false, data.error);
+            document.getElementById('temperature').textContent = '--';
+            document.getElementById('humidity').textContent    = '--';
+            document.getElementById('temp-bar').style.background = '#8b8b9e';
+            document.getElementById('hum-bar').style.background  = '#8b8b9e';
+            setLed('N/A');
+            setPot('N/A');
+        } else {
+            setStatus(true, 'Connected');
+            setTemperature(data.temperature);
+            setHumidity(data.humidity);
+            setLed(data.led_status);
+            setPot(data.pot_value);
+        }
+    }
+
+    function setTemperature(val) {
+        document.getElementById('temperature').textContent = val === 'N/A' ? '--' : val;
+        const n = parseFloat(val);
+        const bar = document.getElementById('temp-bar');
+        if (isNaN(n)) { bar.style.background = '#8b8b9e'; return; }
+        if      (n < 15)  bar.style.background = '#4fc3f7';
+        else if (n < 28)  bar.style.background = '#4ade80';
+        else if (n < 35)  bar.style.background = '#fbbf24';
+        else              bar.style.background = '#f87171';
+    }
+
+    function setHumidity(val) {
+        document.getElementById('humidity').textContent = val === 'N/A' ? '--' : val;
+        const n = parseFloat(val);
+        const bar = document.getElementById('hum-bar');
+        if (isNaN(n)) { bar.style.background = '#8b8b9e'; return; }
+        if      (n < 30) bar.style.background = '#fbbf24';
+        else if (n < 60) bar.style.background = '#4ade80';
+        else             bar.style.background = '#4fc3f7';
+    }
+
+    function setLed(status) {
+        const isOn = status === 'ON';
+        const isOff = status === 'OFF';
+
+        // Status text
+        if (isOn) {
+            ledStatusText.textContent = 'ON';
+            ledStatusText.style.color = 'var(--success)';
+        } else if (isOff) {
+            ledStatusText.textContent = 'OFF';
+            ledStatusText.style.color = 'var(--danger)';
+        } else {
+            ledStatusText.textContent = '--';
+            ledStatusText.style.color = 'var(--text-secondary)';
+        }
+
+        // Toggle checkbox (sync without firing onchange)
+        ledToggle.checked = isOn;
+
+        // Bulb icon glow
+        if (isOn) {
+            ledGradCenter.setAttribute('stop-color', '#fff9c4');
+            ledGradEdge.setAttribute('stop-color', '#ffd54f');
+            ledFilament.setAttribute('stroke', '#ffab40');
+            ledBulbIcon.style.filter = 'drop-shadow(0 0 10px rgba(255,215,0,0.7))';
+        } else {
+            ledGradCenter.setAttribute('stop-color', '#555');
+            ledGradEdge.setAttribute('stop-color', '#333');
+            ledFilament.setAttribute('stroke', '#555');
+            ledBulbIcon.style.filter = 'none';
+        }
+    }
+
     function setBulb(pct) {
-        // pct: 0.0 – 1.0
         if (pct <= 0) {
-            bulbBody.style.fill = 'url(#bulb-grad)';
-            gradCenter.setAttribute('stop-color', '#ffffff');
-            gradCenter.setAttribute('stop-opacity', '0.5');
-            gradEdge.setAttribute('stop-color', '#c8c8c8');
-            gradEdge.setAttribute('stop-opacity', '1');
-            filament.setAttribute('stroke', '#bbb');
+            gradCenter.setAttribute('stop-color', '#555');
+            gradCenter.setAttribute('stop-opacity', '0.9');
+            gradEdge.setAttribute('stop-color', '#333');
+            filament.setAttribute('stroke', '#555');
             bulbSvg.style.filter = 'none';
             return;
         }
-
-        // Globe: grey → warm yellow
-        const cr = Math.round(lerp(255, 255, pct));
-        const cg = Math.round(lerp(255, 240, pct));
-        const cb = Math.round(lerp(255,  80, pct));
-        const er = Math.round(lerp(200, 255, pct));
-        const eg = Math.round(lerp(200, 190, pct));
-        const eb = Math.round(lerp(200,  30, pct));
-
+        const cr = 255, cg = Math.round(lerp(200, 240, pct)), cb = Math.round(lerp(80, 80, pct));
+        const er = Math.round(lerp(80, 255, pct)), eg = Math.round(lerp(80, 190, pct)), eb = Math.round(lerp(80, 30, pct));
         gradCenter.setAttribute('stop-color', `rgb(${cr},${cg},${cb})`);
         gradCenter.setAttribute('stop-opacity', '1');
         gradEdge.setAttribute('stop-color', `rgb(${er},${eg},${eb})`);
         gradEdge.setAttribute('stop-opacity', '1');
-
-        // Filament: grey → orange-white hot
-        const fr = Math.round(lerp(180, 255, pct));
-        const fg = Math.round(lerp(180, 200, pct));
-        const fb = Math.round(lerp(180,  60, pct));
+        const fr = 255, fg = Math.round(lerp(100, 200, pct)), fb = Math.round(lerp(50, 60, pct));
         filament.setAttribute('stroke', `rgb(${fr},${fg},${fb})`);
         filament.setAttribute('stroke-width', 1.5 + pct * 1.5);
-
-        // Outer glow
-        const glowPx  = (pct * 18).toFixed(1);
-        const glowAlpha = (pct * 0.85).toFixed(2);
-        bulbSvg.style.filter =
-            `drop-shadow(0 0 ${glowPx}px rgba(255,215,0,${glowAlpha}))`;
-    }
-
-    function setLed(status) {
-        const bulb  = document.getElementById('led-bulb');
-        const label = document.getElementById('led-label');
-        if (status === 'ON') {
-            bulb.classList.add('on');
-            label.textContent = 'ON';
-        } else {
-            bulb.classList.remove('on');
-            label.textContent = (status === 'OFF') ? 'OFF' : '--';
-        }
+        const glowPx = (pct * 18).toFixed(1);
+        const glowA  = (pct * 0.85).toFixed(2);
+        bulbSvg.style.filter = `drop-shadow(0 0 ${glowPx}px rgba(255,215,0,${glowA}))`;
     }
 
     function setPot(raw) {
@@ -294,7 +848,7 @@
             setBulb(0);
             return;
         }
-        const value = parseInt(raw, 10);
+        const value   = parseInt(raw, 10);
         if (isNaN(value)) { setPot('N/A'); return; }
         const clamped = Math.max(0, Math.min(1023, value));
         const pct     = clamped / 1023;
@@ -303,36 +857,52 @@
         setBulb(pct);
     }
 
-    function updateSensorData() {
-        fetch('/data')
-            .then(r => r.json())
-            .then(data => {
-                const statusDiv = document.getElementById('status');
-                if (data.error) {
-                    document.getElementById('temperature').textContent = 'N/A';
-                    document.getElementById('humidity').textContent    = 'N/A';
-                    setLed('N/A');
-                    setPot('N/A');
-                    statusDiv.textContent = data.error;
-                    statusDiv.className   = 'error';
-                } else {
-                    document.getElementById('temperature').textContent = data.temperature;
-                    document.getElementById('humidity').textContent    = data.humidity;
-                    setLed(data.led_status);
-                    setPot(data.pot_value);
-                    statusDiv.textContent = 'Connected';
-                    statusDiv.className   = 'ok';
-                }
-            })
-            .catch(() => {
-                const statusDiv = document.getElementById('status');
-                statusDiv.textContent = 'Server connection failed.';
-                statusDiv.className   = 'error';
-            });
+    function setStatus(ok, msg) {
+        const dot  = document.getElementById('status-dot');
+        const text = document.getElementById('status-text');
+        dot.className = ok ? 'connected' : 'error';
+        text.textContent = msg;
     }
 
-    setInterval(updateSensorData, 500);
-    window.onload = updateSensorData;
+    // ── LED Toggle ──
+    async function toggleLed() {
+        if (toggleDebounce) return;
+        toggleDebounce = setTimeout(() => { toggleDebounce = null; }, 600);
+
+        const action = ledToggle.checked ? 'on' : 'off';
+        // Optimistic UI
+        setLed(action === 'on' ? 'ON' : 'OFF');
+        try {
+            await fetch('/led', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action })
+            });
+        } catch (e) {
+            // Next poll will correct the state
+        }
+    }
+
+    // ── Clock ──
+    function updateClock() {
+        document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // ── Keyboard shortcut ──
+    document.addEventListener('keydown', e => {
+        if ((e.key === 'h' || e.key === 'H') && !isDashboardActive) enterDashboard();
+    });
+
+    // ── Mobile long-press on home icon ──
+    let longPressTimer = null;
+    const homeIcon = document.getElementById('home-icon');
+    homeIcon.addEventListener('touchstart', () => {
+        longPressTimer = setTimeout(enterDashboard, 1500);
+    });
+    homeIcon.addEventListener('touchend', () => clearTimeout(longPressTimer));
+    homeIcon.addEventListener('touchmove', () => clearTimeout(longPressTimer));
 </script>
 </body>
 </html>
