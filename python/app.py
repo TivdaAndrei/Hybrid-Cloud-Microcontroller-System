@@ -23,42 +23,6 @@ FACE_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'users.j
 FACE_MATCH_THRESHOLD = float(os.environ.get('FACE_MATCH_THRESHOLD', '0.5'))
 face_lock = threading.Lock()
 
-# --- NFC tag storage ---
-TAG_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tags.json')
-nfc_lock = threading.Lock()
-nfc_state = {
-    'last_uid': None,
-    'last_seen_at': None,
-    'matched_name': None,
-}
-
-
-def _load_tag_db():
-    """Return list of {name, uid} from disk. Empty list if missing/corrupt."""
-    try:
-        with open(TAG_DB_PATH, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            if isinstance(data, list):
-                return data
-    except (FileNotFoundError, json.JSONDecodeError):
-        pass
-    return []
-
-
-def _save_tag_db(tags):
-    with open(TAG_DB_PATH, 'w', encoding='utf-8') as f:
-        json.dump(tags, f)
-
-
-def _lookup_tag(uid):
-    """Return the enrolled name for a UID, or None."""
-    uid = (uid or '').upper()
-    if not uid:
-        return None
-    for t in _load_tag_db():
-        if t.get('uid', '').upper() == uid:
-            return t.get('name')
-    return None
 
 
 def _load_face_db():
@@ -224,15 +188,6 @@ def read_from_arduino():
                         with data_lock:
                             sensor_data['slave_led_status'] = status
                         print(f"Slave LED status updated: {status}")
-                elif line.startswith("NFC:UID="):
-                    uid = line.split('=', 1)[1].strip().upper()
-                    if uid:
-                        matched = _lookup_tag(uid)
-                        with nfc_lock:
-                            nfc_state['last_uid'] = uid
-                            nfc_state['last_seen_at'] = datetime.now().isoformat(timespec='seconds')
-                            nfc_state['matched_name'] = matched
-                        print(f"NFC tag seen: {uid} -> {matched or 'unknown'}")
                 elif line.startswith("POT:"):
                     parts = line.split(':')
                     if len(parts) == 2 and parts[1].strip().lstrip('-').isdigit():
@@ -396,67 +351,11 @@ def face_delete_user(name):
     return jsonify({'status': 'ok', 'removed': before - len(users)})
 
 
-@app.route('/nfc/state', methods=['GET'])
-def nfc_get_state():
-    """Latest tag seen by the master Arduino, plus whether it's enrolled."""
-    with nfc_lock:
-        return jsonify(dict(nfc_state))
-
-
-@app.route('/nfc/users', methods=['GET'])
-def nfc_users():
-    """Return enrolled tag-user names (no UIDs leak to clients)."""
-    tags = _load_tag_db()
-    return jsonify({'users': [t.get('name', '') for t in tags]})
-
-
-@app.route('/nfc/enroll', methods=['POST'])
-def nfc_enroll():
-    """
-    Body: {"name": "...", "uid": "04A1B2C3"}
-    Stores or replaces the tag for that name. Re-evaluates nfc_state so the
-    modal sees the new match immediately on the next poll.
-    """
-    payload = request.get_json(silent=True) or {}
-    name = (payload.get('name') or '').strip()
-    uid = (payload.get('uid') or '').strip().upper()
-    if not name or not uid:
-        return jsonify({'status': 'error', 'message': 'name and uid are required'}), 400
-
-    tags = _load_tag_db()
-    replaced = False
-    for t in tags:
-        if t.get('uid', '').upper() == uid:
-            t['name'] = name
-            replaced = True
-            break
-        if t.get('name', '').lower() == name.lower():
-            t['uid'] = uid
-            replaced = True
-            break
-    if not replaced:
-        tags.append({'name': name, 'uid': uid})
-    _save_tag_db(tags)
-
-    # Refresh the matched_name on the current state so the polling modal
-    # sees the new association without waiting for another tap.
-    with nfc_lock:
-        if nfc_state['last_uid'] == uid:
-            nfc_state['matched_name'] = name
-
-    return jsonify({'status': 'ok', 'name': name, 'uid': uid, 'replaced': replaced, 'count': len(tags)})
-
-
-@app.route('/nfc/users/<name>', methods=['DELETE'])
-def nfc_delete_user(name):
-    target = (name or '').strip().lower()
-    if not target:
-        return jsonify({'status': 'error'}), 400
-    tags = _load_tag_db()
-    before = len(tags)
-    tags = [t for t in tags if t.get('name', '').lower() != target]
-    _save_tag_db(tags)
-    return jsonify({'status': 'ok', 'removed': before - len(tags)})
+@app.route('/buzzer/tada', methods=['POST'])
+def buzzer_tada():
+    """Queue a single 'B' byte for the master Arduino to play the tadaa fanfare."""
+    command_queue.put('B')
+    return jsonify({'status': 'ok'})
 
 
 @app.route('/ai/voice', methods=['POST'])

@@ -17,11 +17,12 @@ const int ENC_CLK = 2;
 const int ENC_DT  = 3;
 const int ENC_SW  = 4;
 
-// Pins for communication with the Master Arduino
+// Pins for communication with the Master Arduino (SoftwareSerial)
+//   slave D10 (RX) <- master D1 (TX)
+//   slave D11 (TX) -> master D0 (RX)
 const int RX_PIN = 10;
 const int TX_PIN = 11;
 
-// Set up the software serial port
 SoftwareSerial masterSerial(RX_PIN, TX_PIN);
 
 // --- Encoder / brightness state ---
@@ -73,7 +74,7 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
 
-  // Start the software serial communication
+  // Start the SoftwareSerial link to the master
   masterSerial.begin(9600);
 
   // Hardware Serial for debugging via USB Serial Monitor
@@ -111,16 +112,10 @@ void loop() {
         // Turning OFF: remember the current brightness so we can restore it.
         savedLevel = level;
         ledOn = false;
-        Serial.print("Slave LED toggled: OFF (saved level=");
-        Serial.print(savedLevel);
-        Serial.println(")");
       } else {
         // Turning ON: restore the brightness we had before the last OFF.
         level = savedLevel;
         ledOn = true;
-        Serial.print("Slave LED toggled: ON (restored level=");
-        Serial.print(level);
-        Serial.println(")");
       }
     }
   }
@@ -146,13 +141,11 @@ void loop() {
   if (now - lastSendMs >= SEND_INTERVAL_MS) {
     lastSendMs = now;
 
-    String potMsg = "POT:" + String(level);
-    masterSerial.println(potMsg);
-    Serial.println("TX> " + potMsg);
+    masterSerial.print("POT:");
+    masterSerial.println(level);
 
-    String ledMsg = String("SLED:") + (ledOn ? "ON" : "OFF");
-    masterSerial.println(ledMsg);
-    Serial.println("TX> " + ledMsg);
+    masterSerial.print("SLED:");
+    masterSerial.println(ledOn ? "ON" : "OFF");
   }
 
   // --- 5. Listen for commands from the Master Arduino ---
@@ -162,7 +155,6 @@ void loop() {
     if (command == 'T') {
       // Toggle the built-in LED (pin 13) when command is received
       digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-      Serial.println("Toggle received from Master");
     }
   }
 

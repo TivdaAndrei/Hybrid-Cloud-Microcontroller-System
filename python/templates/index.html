@@ -722,7 +722,7 @@
             </button>
 
             <!-- NFC button -->
-            <button class="auth-btn" onclick="openNfcModal()">
+            <button class="auth-btn" onclick="showToast('NFC coming soon')">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12 20c4.42 0 8-3.58 8-8s-3.58-8-8-8-8 3.58-8 8"/>
                     <path d="M12 16c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4"/>
@@ -1000,26 +1000,6 @@
     </div>
 </div>
 
-<!-- NFC modal (reuses .face-* styles for visual consistency) -->
-<div id="nfc-modal" class="face-modal" role="dialog" aria-labelledby="nfc-title">
-    <div class="face-card">
-        <div class="face-title" id="nfc-title">NFC Login</div>
-        <div style="font-size:54px; line-height:1; padding:8px 0;" id="nfc-icon">📡</div>
-        <div class="face-status" id="nfc-status">Tap your tag on the reader…</div>
-        <div class="face-users-list" id="nfc-users-list"></div>
-        <div class="face-actions" id="nfc-default-actions">
-            <button class="face-btn secondary" onclick="closeNfcModal()">Cancel</button>
-        </div>
-        <div class="face-actions" id="nfc-enroll-actions" style="display:none; flex-direction:column; width:100%;">
-            <div class="face-enroll-row">
-                <input id="nfc-enroll-name" type="text" placeholder="Your name" maxlength="32" autocomplete="off">
-                <button class="face-btn" id="nfc-enroll-btn">Save</button>
-            </div>
-            <button class="face-btn secondary" onclick="closeNfcModal()" style="margin-top:6px;">Cancel</button>
-        </div>
-    </div>
-</div>
-
 <!-- face-api.js (vladmandic's actively maintained fork) -->
 <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/dist/face-api.min.js"></script>
 
@@ -1063,6 +1043,9 @@
     function enterDashboard() {
         if (isDashboardActive) return;
         isDashboardActive = true;
+        // Fire-and-forget the buzzer fanfare on the master Arduino. We don't
+        // await it so the UI transition isn't blocked if the serial queue is busy.
+        fetch('/buzzer/tada', { method: 'POST' }).catch(() => {});
         const login = document.getElementById('login-screen');
         const dash  = document.getElementById('dashboard');
         login.classList.add('fade-out');
@@ -1577,146 +1560,6 @@
     window.closeFaceModal    = closeFaceModal;
     window.showFaceEnrollUI  = showFaceEnrollUI;
     window.hideFaceEnrollUI  = hideFaceEnrollUI;
-
-    // ── NFC ──
-    const nfcModal         = document.getElementById('nfc-modal');
-    const nfcStatus        = document.getElementById('nfc-status');
-    const nfcUsersList     = document.getElementById('nfc-users-list');
-    const nfcDefaultActions = document.getElementById('nfc-default-actions');
-    const nfcEnrollActions  = document.getElementById('nfc-enroll-actions');
-    const nfcEnrollName    = document.getElementById('nfc-enroll-name');
-    const nfcEnrollBtn     = document.getElementById('nfc-enroll-btn');
-
-    let nfcPollInterval = null;
-    let nfcBaselineUid  = null;   // UID seen at modal open — ignore until a NEW one arrives
-    let nfcPendingUid   = null;   // UID currently awaiting an enrollment name
-
-    function setNfcStatus(text, kind) {
-        nfcStatus.textContent = text;
-        nfcStatus.className = 'face-status' + (kind ? ' ' + kind : '');
-    }
-
-    async function refreshNfcUsers() {
-        try {
-            const res = await fetch('/nfc/users');
-            const data = await res.json();
-            const users = data.users || [];
-            if (users.length === 0) {
-                nfcUsersList.textContent = 'No tags enrolled yet — tap any tag to enroll it.';
-            } else {
-                nfcUsersList.textContent = 'Enrolled: ' + users.join(', ');
-            }
-        } catch (e) {
-            nfcUsersList.textContent = '';
-        }
-    }
-
-    function showNfcEnrollUI(uid) {
-        nfcPendingUid = uid;
-        nfcDefaultActions.style.display = 'none';
-        nfcEnrollActions.style.display = 'flex';
-        nfcEnrollName.value = '';
-        nfcEnrollName.focus();
-    }
-
-    function hideNfcEnrollUI() {
-        nfcPendingUid = null;
-        nfcDefaultActions.style.display = 'flex';
-        nfcEnrollActions.style.display = 'none';
-    }
-
-    async function pollNfcOnce() {
-        try {
-            const res = await fetch('/nfc/state');
-            const data = await res.json();
-            const uid = data.last_uid;
-            if (!uid || uid === nfcBaselineUid) return;
-            // New tag detected.
-            nfcBaselineUid = uid;
-            if (data.matched_name) {
-                setNfcStatus(`Welcome, ${data.matched_name}!`, 'ok');
-                currentUser = data.matched_name;
-                if (nfcPollInterval) { clearInterval(nfcPollInterval); nfcPollInterval = null; }
-                setTimeout(() => {
-                    closeNfcModal();
-                    enterDashboard();
-                }, 800);
-            } else {
-                setNfcStatus(`New tag ${uid}. Enter a name to enroll it.`, 'warn');
-                showNfcEnrollUI(uid);
-            }
-        } catch (e) {
-            // Network blip — try again next tick.
-        }
-    }
-
-    async function openNfcModal() {
-        nfcModal.classList.add('show');
-        hideNfcEnrollUI();
-        setNfcStatus('Tap your tag on the reader…', 'warn');
-        await refreshNfcUsers();
-        // Seed the baseline with whatever the backend currently holds, so a
-        // tag tapped before the modal opened doesn't replay as a "new" event.
-        try {
-            const res = await fetch('/nfc/state');
-            const data = await res.json();
-            nfcBaselineUid = data.last_uid || null;
-        } catch (e) {
-            nfcBaselineUid = null;
-        }
-        if (nfcPollInterval) clearInterval(nfcPollInterval);
-        nfcPollInterval = setInterval(pollNfcOnce, 500);
-    }
-
-    function closeNfcModal() {
-        nfcModal.classList.remove('show');
-        if (nfcPollInterval) { clearInterval(nfcPollInterval); nfcPollInterval = null; }
-        hideNfcEnrollUI();
-    }
-
-    async function doNfcEnroll() {
-        const name = (nfcEnrollName.value || '').trim();
-        if (!name) {
-            setNfcStatus('Please enter a name first.', 'bad');
-            return;
-        }
-        if (!nfcPendingUid) {
-            setNfcStatus('No tag to enroll. Tap your tag first.', 'bad');
-            return;
-        }
-        nfcEnrollBtn.disabled = true;
-        try {
-            const res = await fetch('/nfc/enroll', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, uid: nfcPendingUid })
-            });
-            const data = await res.json();
-            if (data.status === 'ok') {
-                setNfcStatus(`Enrolled "${data.name}". Logging in…`, 'ok');
-                currentUser = data.name;
-                await refreshNfcUsers();
-                if (nfcPollInterval) { clearInterval(nfcPollInterval); nfcPollInterval = null; }
-                setTimeout(() => {
-                    closeNfcModal();
-                    enterDashboard();
-                }, 900);
-            } else {
-                setNfcStatus(data.message || 'Enroll failed.', 'bad');
-            }
-        } catch (e) {
-            setNfcStatus('Enroll request failed: ' + e.message, 'bad');
-        } finally {
-            nfcEnrollBtn.disabled = false;
-        }
-    }
-
-    nfcEnrollBtn.addEventListener('click', doNfcEnroll);
-    nfcEnrollName.addEventListener('keydown', e => { if (e.key === 'Enter') doNfcEnroll(); });
-
-    // Expose for the inline onclick in markup
-    window.openNfcModal  = openNfcModal;
-    window.closeNfcModal = closeNfcModal;
 
     // ── Voice / Push-to-talk ──
     const pttBtn        = document.getElementById('ptt-btn');

@@ -1,22 +1,34 @@
 #include <DHT.h>
-#include <SPI.h>
-#include <MFRC522.h>
+#include <SoftwareSerial.h>
 
-// Status LED moved from D13 to D8 because D13 is now SPI SCK for the RC522.
-const int LED_PIN = 8;
+const int LED_PIN = 8;     // status LED (currently wired to D8)
 const int DHT_PIN = 7;
 const int DHT_TYPE = DHT11;
+const int BUZZER_PIN = 6;  // passive piezo buzzer between D6 and GND
 
-// RC522 NFC reader (SPI). MOSI/MISO/SCK are fixed by the Uno's SPI hardware
-// (D11/D12/D13). SS and RST are configurable.
-const int RFID_SS_PIN  = 10;
-const int RFID_RST_PIN = 9;
+// Slave link via SoftwareSerial — same convention as the slave sketch.
+//   master D10 (RX) <- slave D11 (TX)
+//   master D11 (TX) -> slave D10 (RX)
+const int SLAVE_RX_PIN = 10;
+const int SLAVE_TX_PIN = 11;
+SoftwareSerial slaveSerial(SLAVE_RX_PIN, SLAVE_TX_PIN);
 
 DHT dht(DHT_PIN, DHT_TYPE);
-MFRC522 mfrc522(RFID_SS_PIN, RFID_RST_PIN);
 
 unsigned long lastReadMs = 0;
 const unsigned long READ_INTERVAL_MS = 2000;
+
+// "Tadaa!" three-note ascending fanfare. Uses tone() so the buzzer must be
+// PASSIVE (a tiny piezo disc), not the always-on active type.
+void playTada() {
+  tone(BUZZER_PIN, 659, 120);   // E5
+  delay(140);
+  tone(BUZZER_PIN, 988, 120);   // B5
+  delay(140);
+  tone(BUZZER_PIN, 1319, 280);  // E6
+  delay(300);
+  noTone(BUZZER_PIN);
+}
 
 void blinkLocalLed(int times = 2, int onMs = 120, int offMs = 120) {
   for (int i = 0; i < times; i++) {
@@ -30,19 +42,19 @@ void blinkLocalLed(int times = 2, int onMs = 120, int offMs = 120) {
 void setup() {
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
-  Serial.begin(9600);
-  dht.begin();
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
 
-  // Initialize SPI bus and the RC522 reader.
-  SPI.begin();
-  mfrc522.PCD_Init();
+  Serial.begin(9600);
+  slaveSerial.begin(9600);
+  dht.begin();
 
   Serial.println("Master started");
   Serial.println("Reading DHT11 every 15 seconds...");
 }
 
 void loop() {
-  // Check for incoming serial data for LED control
+  // Check for incoming serial data for LED / buzzer control
   if (Serial.available() > 0) {
     char command = Serial.read();
     if (command == 'A') {
@@ -51,19 +63,16 @@ void loop() {
     } else if (command == 'S') {
       digitalWrite(LED_PIN, LOW);
       Serial.println("LED_STATUS:OFF"); // Report status back
+    } else if (command == 'B') {
+      playTada();
+      Serial.println("BUZZER:TADA");
     }
   }
 
-  // Poll the RC522 for a new tag. PICC_IsNewCardPresent() is non-blocking
-  // and returns false almost instantly when no card is present.
-  if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
-    Serial.print("NFC:UID=");
-    for (byte i = 0; i < mfrc522.uid.size; i++) {
-      if (mfrc522.uid.uidByte[i] < 0x10) Serial.print('0');
-      Serial.print(mfrc522.uid.uidByte[i], HEX);
-    }
-    Serial.println();
-    mfrc522.PICC_HaltA();
+  // Drain any bytes coming from the slave and forward them up the USB
+  // serial line so Flask sees POT:/SLED: messages exactly as before.
+  while (slaveSerial.available() > 0) {
+    Serial.write(slaveSerial.read());
   }
 
   // Read sensor data at regular intervals
