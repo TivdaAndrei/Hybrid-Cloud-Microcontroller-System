@@ -85,6 +85,6 @@ On Uno, USB serial and pins 0/1 are the same hardware UART. For this simple chai
 
 Mai jos este prezentată diagrama circuitului, care include comunicarea UART între cele două plăci Arduino, senzorul DHT11 și modulul Rotary Encoder:
 
-![Schema Circuitului](docs/Hybrid_Cloud_MIcrocontroller_System.png)
+![Schema Circuitului](hardware/Hybrid_Cloud_MIcrocontroller_System.png)
 
-📄 **[Descarcă schema completă în format PDF (pentru print/zoom)](docs/Hybrid_Cloud_MIcrocontroller_System.pdf)**
+📄 **[Descarcă schema completă în format PDF (pentru print/zoom)](hardware/Hybrid_Cloud_MIcrocontroller_System.pdf)**
