@@ -88,3 +88,85 @@ Mai jos este prezentată diagrama circuitului, care include comunicarea UART în
 ![Schema Circuitului](hardware/Hybrid_Cloud_MIcrocontroller_System.png)
 
 📄 **[Descarcă schema completă în format PDF (pentru print/zoom)](hardware/Hybrid_Cloud_MIcrocontroller_System.pdf)**
+
+## Testing with Azure IoT Hub (no WiFi module needed)
+
+The Arduino Uno R3 has no built-in networking. The laptop acts as a **field gateway**: it reads real sensor data from the master over USB-serial and forwards it to Azure IoT Hub.
+
+### How it works
+
+```
+DHT11 → Arduino Master → USB-Serial → Laptop (app.py) → Azure IoT Hub
+                 ↑
+         Arduino Slave (pot/LED)
+```
+
+The Azure bridge runs as a background thread inside `app.py`. It is disabled by default and activates only when `AZURE_IOT_CONNECTION_STRING` is set.
+
+### Setup
+
+1. **Install dependencies** (includes the Azure IoT Device SDK):
+   ```powershell
+   pip install -r python\requirements.txt
+   ```
+
+2. **Create a device in Azure IoT Hub**:
+   - Azure Portal → your IoT Hub → **Devices** → **Add Device**
+   - Copy the device's **Primary Connection String**
+   - Format: `HostName=<hub>.azure-devices.net;DeviceId=<id>;SharedAccessKey=<key>`
+
+3. **Set environment variables** (PowerShell):
+   ```powershell
+   $env:AZURE_IOT_CONNECTION_STRING = "HostName=...;DeviceId=...;SharedAccessKey=..."
+   $env:ARDUINO_PORT = "COM7"                  # adjust to your port
+   $env:AZURE_IOT_INTERVAL_SECONDS = "15"      # optional, default is 15 s
+   ```
+
+4. **Plug in the Arduino master** via USB (DHT11 on D7, slave wired on D10/D11).
+
+5. **Run the app**:
+   ```powershell
+   python python\app.py
+   ```
+   You should see log lines like:
+   ```
+   Arduino connected.
+   Data updated: Temp=22.50, Hum=48.10
+   [azure] connected to IoT Hub.
+   [azure] sent: {"temperature": "22.50", "humidity": "48.10", ...}
+   ```
+
+### Verifying messages arrive in Azure
+
+**Option A — Azure Portal:**
+IoT Hub → Overview → "Device to cloud messages" metric ticks up every 15 s.
+
+**Option B — Azure CLI (live stream):**
+```bash
+az iot hub monitor-events --hub-name <your-hub-name>
+```
+
+**Option C — smoke test without Arduino (`python/test.py`):**
+```powershell
+$env:CONNECTION_STRING = "HostName=...;DeviceId=...;SharedAccessKey=..."
+python python\test.py
+```
+Sends fake telemetry every 5 s — useful to verify the connection string is correct before plugging in hardware.
+
+### Free-tier note
+
+Azure IoT Hub free tier allows **8,000 messages/day**. At the default 15 s interval the bridge sends ~5,760 messages/day — safely within the limit. Lower the interval only if you need higher resolution data.
+
+### Payload format
+
+Each message is JSON:
+```json
+{
+  "temperature": "22.50",
+  "humidity": "48.10",
+  "led_status": "ON",
+  "slave_led_status": "OFF",
+  "pot_value": "512",
+  "ts": "2026-05-26T14:30:00"
+}
+```

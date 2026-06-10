@@ -1,1 +1,6 @@
 .vscode/
+python/start.ps1
+python/.env
+*.pyc
+__pycache__/
+devtunnel.exe

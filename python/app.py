@@ -8,6 +8,21 @@ import math
 import json
 import queue
 from datetime import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
+
+try:
+    from azure.iot.device import IoTHubDeviceClient, Message as IoTMessage
+    _AZURE_SDK_AVAILABLE = True
+except ImportError:
+    _AZURE_SDK_AVAILABLE = False
+
+try:
+    from azure.communication.email import EmailClient
+    _AZURE_EMAIL_SDK_AVAILABLE = True
+except ImportError:
+    _AZURE_EMAIL_SDK_AVAILABLE = False
 
 from ollama_agent import analyze as ollama_analyze, voice_command as ollama_voice_command
 
@@ -58,6 +73,7 @@ sensor_data = {
     'led_status': 'N/A',
     'slave_led_status': 'N/A',
     'pot_value': 'N/A',
+    'water_level': 'N/A',
     'error': 'Initializing...'
 }
 data_lock = threading.Lock()
@@ -145,7 +161,7 @@ def read_from_arduino():
         ser = None
         try:
             # Set ARDUINO_PORT env variable to override (e.g. set ARDUINO_PORT=COM5)
-            arduino_port = os.environ.get('ARDUINO_PORT', 'COM7')
+            arduino_port = os.environ.get('ARDUINO_PORT', 'COM4')
             ser = serial.Serial(arduino_port, 9600, timeout=2)
             print("Arduino connected.")
             with data_lock:
@@ -195,6 +211,13 @@ def read_from_arduino():
                         with data_lock:
                             sensor_data['pot_value'] = pot
                         print(f"Pot value: {pot}")
+                elif line.startswith("WATER:"):
+                    parts = line.split(':')
+                    if len(parts) == 2 and parts[1].strip().isdigit():
+                        water = parts[1].strip()
+                        with data_lock:
+                            sensor_data['water_level'] = water
+                        print(f"Water level: {water}")
                 elif line:
                     print(f"[Arduino] {line}")
 
@@ -207,10 +230,159 @@ def read_from_arduino():
                 sensor_data['led_status'] = 'N/A'
                 sensor_data['slave_led_status'] = 'N/A'
                 sensor_data['pot_value'] = 'N/A'
+                sensor_data['water_level'] = 'N/A'
         finally:
             if ser and ser.is_open:
                 ser.close()
         time.sleep(5)  # Wait 5 seconds before trying to reconnect
+
+# --- Azure IoT Hub Bridge ---
+def azure_iot_loop():
+    """
+    Background thread that forwards real Arduino sensor data to Azure IoT Hub.
+
+    Requires the environment variable AZURE_IOT_CONNECTION_STRING to be set.
+    If it is missing, the thread exits immediately (non-Azure runs unaffected).
+
+    Optional env vars:
+        AZURE_IOT_INTERVAL_SECONDS  — publish interval in seconds (default 15).
+    """
+    conn = os.environ.get('AZURE_IOT_CONNECTION_STRING', '').strip()
+    if not conn:
+        print("[azure] disabled — set AZURE_IOT_CONNECTION_STRING to enable.")
+        return
+
+    if not _AZURE_SDK_AVAILABLE:
+        print("[azure] disabled — 'azure-iot-device' package not installed. "
+              "Run: pip install azure-iot-device")
+        return
+
+    interval = int(os.environ.get('AZURE_IOT_INTERVAL_SECONDS', '15'))
+    print(f"[azure] bridge starting (interval={interval}s).")
+
+    while True:
+        client = None
+        try:
+            client = IoTHubDeviceClient.create_from_connection_string(conn)
+            client.connect()
+            print("[azure] connected to IoT Hub.")
+
+            while True:
+                snapshot = _snapshot_sensors()
+
+                # Skip send if Arduino is offline or hasn't reported yet.
+                if snapshot.get('error') or snapshot.get('temperature') == 'N/A':
+                    print("[azure] waiting for Arduino data before sending...")
+                else:
+                    payload = {
+                        'temperature': snapshot.get('temperature'),
+                        'humidity': snapshot.get('humidity'),
+                        'led_status': snapshot.get('led_status'),
+                        'slave_led_status': snapshot.get('slave_led_status'),
+                        'pot_value': snapshot.get('pot_value'),
+                        'water_level': snapshot.get('water_level'),
+                        'ts': datetime.now().isoformat(timespec='seconds'),
+                    }
+                    msg = IoTMessage(json.dumps(payload))
+                    msg.content_encoding = 'utf-8'
+                    msg.content_type = 'application/json'
+                    client.send_message(msg)
+                    print(f"[azure] sent: {json.dumps(payload)}")
+
+                time.sleep(interval)
+
+        except Exception as e:
+            print(f"[azure] error: {e}. Reconnecting in 30 s...")
+            time.sleep(30)
+        finally:
+            if client:
+                try:
+                    client.shutdown()
+                except Exception:
+                    pass
+
+
+# --- Water Level Alert (Azure Communication Services Email) ---
+def water_alert_loop():
+    """
+    Background thread that sends an email via Azure Communication Services
+    when the water sensor exceeds a configurable threshold.
+
+    Required env vars:
+        AZURE_COMM_CONNECTION_STRING  — ACS connection string from the Azure portal
+        AZURE_COMM_SENDER             — verified sender address (e.g. DoNotReply@<domain>.azurecomm.net)
+        AZURE_COMM_RECIPIENT          — destination email address
+
+    Optional env vars:
+        WATER_ALERT_THRESHOLD         — raw ADC value (0-1023) to trigger alert (default 500)
+        WATER_ALERT_COOLDOWN_SECONDS  — minimum seconds between alert emails (default 300)
+    """
+    conn = os.environ.get('AZURE_COMM_CONNECTION_STRING', '').strip()
+    if not conn:
+        print("[water-alert] disabled — set AZURE_COMM_CONNECTION_STRING to enable.")
+        return
+    if not _AZURE_EMAIL_SDK_AVAILABLE:
+        print("[water-alert] disabled — 'azure-communication-email' not installed. "
+              "Run: pip install azure-communication-email")
+        return
+
+    sender    = os.environ.get('AZURE_COMM_SENDER', '').strip()
+    recipient = os.environ.get('AZURE_COMM_RECIPIENT', '').strip()
+    if not sender or not recipient:
+        print("[water-alert] disabled — set AZURE_COMM_SENDER and AZURE_COMM_RECIPIENT.")
+        return
+
+    threshold = int(os.environ.get('WATER_ALERT_THRESHOLD', '500'))
+    cooldown  = int(os.environ.get('WATER_ALERT_COOLDOWN_SECONDS', '600'))
+    last_alert_time = 0
+    rate_limit_backoff = 0   # extra sleep applied after a TooManyRequests error
+    print(f"[water-alert] monitoring (threshold={threshold}/1023, cooldown={cooldown}s).")
+
+    client = EmailClient.from_connection_string(conn)
+
+    while True:
+        if rate_limit_backoff > 0:
+            print(f"[water-alert] rate-limited, backing off {rate_limit_backoff}s.")
+            time.sleep(rate_limit_backoff)
+            rate_limit_backoff = 0
+
+        try:
+            snapshot   = _snapshot_sensors()
+            water_raw  = snapshot.get('water_level', 'N/A')
+            if water_raw != 'N/A' and not snapshot.get('error'):
+                water = int(water_raw)
+                now   = time.time()
+                if water >= threshold and (now - last_alert_time) >= cooldown:
+                    pct = round(water / 1023 * 100)
+                    message = {
+                        "senderAddress": sender,
+                        "recipients": {"to": [{"address": recipient}]},
+                        "content": {
+                            "subject": f"[HomeOS Alert] Water level rising: {pct}%",
+                            "plainText": (
+                                f"Water sensor alert!\n\n"
+                                f"Current reading : {water} / 1023  ({pct}%)\n"
+                                f"Alert threshold : {threshold} / 1023  ({round(threshold/1023*100)}%)\n\n"
+                                f"Please check for water leaks or flooding.\n\n"
+                                f"– HomeOS"
+                            ),
+                        },
+                    }
+                    poller = client.begin_send(message)
+                    result = poller.result()
+                    print(f"[water-alert] email sent (reading={water}, id={result.get('id')})")
+                    last_alert_time = now
+        except Exception as e:
+            import traceback
+            print(f"[water-alert] error: {e}")
+            traceback.print_exc()
+            err_str = str(e)
+            if 'TooManyRequests' in err_str or '429' in err_str:
+                # Azure ACS rate limit — back off for the full cooldown before retrying
+                rate_limit_backoff = cooldown
+            last_alert_time = time.time()
+        time.sleep(30)
+
 
 # --- Flask Routes ---
 @app.route('/')
@@ -421,6 +593,14 @@ if __name__ == '__main__':
     # Start the AI analysis loop
     ai_thread = threading.Thread(target=ai_loop, daemon=True)
     ai_thread.start()
+
+    # Start the Azure IoT Hub bridge (no-op if AZURE_IOT_CONNECTION_STRING is unset)
+    azure_thread = threading.Thread(target=azure_iot_loop, daemon=True)
+    azure_thread.start()
+
+    # Start the water level alert thread (no-op if AZURE_COMM_CONNECTION_STRING is unset)
+    water_alert_thread = threading.Thread(target=water_alert_loop, daemon=True)
+    water_alert_thread.start()
 
     # Start the Flask web server
     # Use host='0.0.0.0' to make it accessible from other devices on your network

@@ -802,6 +802,31 @@
             <div class="card-bar" id="hum-bar" style="background:#8b8b9e;"></div>
         </div>
 
+        <!-- Water Sensor (full width) -->
+        <div class="card card-full">
+            <div class="card-label" style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="display:flex; align-items:center; gap:8px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4fc3f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2C6.48 2 2 7.5 2 13a10 10 0 0 0 20 0c0-5.5-4.48-11-10-11z"/>
+                    </svg>
+                    Water Sensor
+                </span>
+                <button id="water-email-btn" onclick="sendWaterAlertNow()" style="background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:4px 10px;font-size:0.78rem;font-weight:500;cursor:pointer;transition:background 0.2s;">
+                    Send alert email
+                </button>
+            </div>
+            <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap; margin-bottom:4px;">
+                <div>
+                    <span class="card-value" id="water-value">--</span>
+                    <span class="card-unit"> / 1023</span>
+                </div>
+                <span id="water-status-badge" style="font-size:1rem; font-weight:500; color:var(--text-secondary);">--</span>
+            </div>
+            <div style="background:rgba(255,255,255,0.07); border-radius:6px; height:10px; overflow:hidden; margin-top:12px;">
+                <div id="water-bar-fill" style="height:100%; width:0%; border-radius:6px; background:#8b8b9e; transition:width 0.4s ease, background 0.4s ease;"></div>
+            </div>
+        </div>
+
         <!-- Master Light (full width) -->
         <div class="card card-full">
             <div class="card-label">
@@ -1002,8 +1027,99 @@
 
 <!-- face-api.js (vladmandic's actively maintained fork) -->
 <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/dist/face-api.min.js"></script>
+<!-- EmailJS SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
 <script>
+    // ── EmailJS Configuration ──────────────────────────────────────────────
+    // Fill in your values from https://www.emailjs.com/
+    const EMAILJS_PUBLIC_KEY   = 'ZjXB5gZdyTZBtTUiP';   // Account > API Keys
+    const EMAILJS_SERVICE_ID   = 'service_ohxn95o';   // Email Services tab
+    const EMAILJS_TEMPLATE_ID  = 'template_oi3vfwm';  // Email Templates tab
+    // Recipient shown in the template — set to match your template variable name
+    const EMAILJS_TO_EMAIL     = 'alexmester04@gmail.com';
+    // Water ADC threshold (0-1023) that triggers an automatic alert email
+    const EMAILJS_WATER_THRESHOLD = 512;
+    // Minimum milliseconds between automatic alert emails (5 minutes)
+    const EMAILJS_COOLDOWN_MS  = 5 * 60 * 1000;
+
+    (function () {
+        if (typeof emailjs !== 'undefined') {
+            emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+        }
+    })();
+
+    let emailjsLastAlertTime = 0;
+
+    /** Manual "Send alert email" button handler — bypasses cooldown. */
+    async function sendWaterAlertNow() {
+        const btn = document.getElementById('water-email-btn');
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+        const raw = document.getElementById('water-value').textContent;
+        const n   = parseInt(raw, 10);
+        const pct = isNaN(n) ? '?' : Math.round(n / 1023 * 100);
+        try {
+            await sendEmailAlert({
+                to_email:  EMAILJS_TO_EMAIL,
+                subject:   `[HomeOS] Manual water sensor report`,
+                message:   `Manual water level report.\n\nCurrent reading: ${isNaN(n) ? raw : n} / 1023 (${pct}%)\n\n– HomeOS`,
+                water_pct: pct,
+                water_raw: isNaN(n) ? raw : n,
+            });
+            showToast('Alert email sent!');
+            emailjsLastAlertTime = Date.now();
+        } catch (err) {
+            console.error('[emailjs] manual send failed:', err);
+            showToast('Email failed — check console for details');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Send alert email';
+        }
+    }
+    window.sendWaterAlertNow = sendWaterAlertNow;
+
+    /**
+     * Send an email via EmailJS.
+     * templateParams must match the variables in your EmailJS template.
+     * Returns a Promise.
+     */
+    function sendEmailAlert(templateParams) {
+        if (typeof emailjs === 'undefined') {
+            console.error('[emailjs] SDK not loaded.');
+            return Promise.reject(new Error('EmailJS SDK not loaded'));
+        }
+        return emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
+    }
+
+    /**
+     * Called by the water sensor logic each poll cycle.
+     * Sends an alert email if the level is above the threshold and
+     * the cooldown has elapsed since the last alert.
+     */
+    function maybeEmailWaterAlert(waterRaw) {
+        if (waterRaw === 'N/A' || waterRaw === undefined) return;
+        const n = parseInt(waterRaw, 10);
+        if (isNaN(n)) return;
+        const now = Date.now();
+        if (n >= EMAILJS_WATER_THRESHOLD && (now - emailjsLastAlertTime) >= EMAILJS_COOLDOWN_MS) {
+            emailjsLastAlertTime = now;
+            const pct = Math.round(n / 1023 * 100);
+            sendEmailAlert({
+                to_email:   EMAILJS_TO_EMAIL,
+                subject:    `[HomeOS Alert] Water level rising: ${pct}%`,
+                message:    `Water sensor alert!\n\nCurrent reading: ${n} / 1023 (${pct}%)\nAlert threshold: ${EMAILJS_WATER_THRESHOLD} / 1023 (${Math.round(EMAILJS_WATER_THRESHOLD/1023*100)}%)\n\nPlease check for water leaks or flooding.\n\n– HomeOS`,
+                water_pct:  pct,
+                water_raw:  n,
+            }).then(() => {
+                console.log('[emailjs] water alert sent.');
+                showToast('Water alert email sent!');
+            }).catch(err => {
+                console.error('[emailjs] send failed:', err);
+            });
+        }
+    }
+
     const ARC_LEN = 308;
 
     // ── Gauge & bulb elements ──
@@ -1110,6 +1226,7 @@
             setLed('N/A');
             setSlaveLed('N/A');
             setPot('N/A');
+            setWater('N/A');
         } else {
             setStatus(true, 'Connected');
             setTemperature(data.temperature);
@@ -1117,6 +1234,7 @@
             setLed(data.led_status);
             setSlaveLed(data.slave_led_status);
             setPot(data.slave_led_status === 'ON' ? data.pot_value : 'N/A');
+            setWater(data.water_level);
         }
     }
 
@@ -1225,6 +1343,38 @@
         potArc.style.strokeDashoffset = (ARC_LEN * (1 - pct)).toFixed(2);
         gaugePct.textContent = Math.round(pct * 100);
         setBulb(pct);
+    }
+
+    function setWater(val) {
+        const valueEl  = document.getElementById('water-value');
+        const badgeEl  = document.getElementById('water-status-badge');
+        const barFill  = document.getElementById('water-bar-fill');
+        if (val === 'N/A' || val === undefined || val === null) {
+            valueEl.textContent = '--';
+            badgeEl.textContent = '--';
+            badgeEl.style.color = 'var(--text-secondary)';
+            barFill.style.width = '0%';
+            barFill.style.background = '#8b8b9e';
+            return;
+        }
+        const n   = parseInt(val, 10);
+        const pct = Math.max(0, Math.min(100, Math.round(n / 1023 * 100)));
+        valueEl.textContent    = n;
+        barFill.style.width    = pct + '%';
+        if (pct < 20) {
+            barFill.style.background = 'var(--success)';
+            badgeEl.textContent      = 'DRY';
+            badgeEl.style.color      = 'var(--success)';
+        } else if (pct < 50) {
+            barFill.style.background = 'var(--warning)';
+            badgeEl.textContent      = 'DAMP';
+            badgeEl.style.color      = 'var(--warning)';
+        } else {
+            barFill.style.background = 'var(--danger)';
+            badgeEl.textContent      = 'WET';
+            badgeEl.style.color      = 'var(--danger)';
+        }
+        maybeEmailWaterAlert(val);
     }
 
     function setStatus(ok, msg) {

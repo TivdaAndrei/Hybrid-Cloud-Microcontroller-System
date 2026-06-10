@@ -17,6 +17,12 @@ const int ENC_CLK = 2;
 const int ENC_DT  = 3;
 const int ENC_SW  = 4;
 
+// Water sensor (3-pin capacitive/resistive module)
+//   S (signal) -> A0  (analog read 0–1023; higher = more water)
+//   +           -> 5V
+//   G (GND)    -> GND
+const int WATER_SENSOR_PIN = A0;
+
 // Pins for communication with the Master Arduino (SoftwareSerial)
 //   slave D10 (RX) <- master D1 (TX)
 //   slave D11 (TX) -> master D0 (RX)
@@ -73,6 +79,8 @@ void setup() {
   // The built-in LED can be used for status blinks
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
+
+  pinMode(WATER_SENSOR_PIN, INPUT);
 
   // Start the SoftwareSerial link to the master
   masterSerial.begin(9600);
@@ -146,6 +154,10 @@ void loop() {
 
     masterSerial.print("SLED:");
     masterSerial.println(ledOn ? "ON" : "OFF");
+
+    int waterLevel = analogRead(WATER_SENSOR_PIN);
+    masterSerial.print("WATER:");
+    masterSerial.println(waterLevel);
   }
 
   // --- 5. Listen for commands from the Master Arduino ---

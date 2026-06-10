@@ -58,10 +58,10 @@ void loop() {
   if (Serial.available() > 0) {
     char command = Serial.read();
     if (command == 'A') {
-      digitalWrite(LED_PIN, HIGH);
+      digitalWrite(LED_PIN, LOW);
       Serial.println("LED_STATUS:ON"); // Report status back
     } else if (command == 'S') {
-      digitalWrite(LED_PIN, LOW);
+      digitalWrite(LED_PIN, HIGH);
       Serial.println("LED_STATUS:OFF"); // Report status back
     } else if (command == 'B') {
       playTada();
